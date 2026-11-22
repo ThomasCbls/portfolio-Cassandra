@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import { profil } from '../data/profil';
 import Ambiance from '../components/Ambiance.astro';
+import Chargeur from '../components/Chargeur.astro';
 
 interface Props {
   titre?: string;
@@ -19,6 +20,19 @@ const accueil = Astro.url.pathname === '/';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
+    <!-- Aperçu lors d'un partage (LinkedIn, messageries) : renseigner `site` dans astro.config.mjs
+         pour que l'adresse de l'image soit complète une fois le site en ligne -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:site_name" content={profil.nom} />
+    <meta property="og:title" content={titrePage} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={Astro.site ? new URL('/og.png', Astro.site).href : '/og.png'} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={`Portfolio de ${profil.nom}`} />
+    {Astro.site && <meta property="og:url" content={new URL(Astro.url.pathname, Astro.site).href} />}
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#0d0b08" />
     <!-- Icône du site : monogramme CL (public/favicon.svg, .ico pour les anciens navigateurs) -->
     <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -31,9 +45,22 @@ const accueil = Astro.url.pathname === '/';
       href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Pinyon+Script&family=Libre+Caslon+Display&display=swap"
     />
     <title>{titrePage}</title>
-    <script is:inline>document.documentElement.classList.add('js');</script>
+    <script is:inline>
+      (function () {
+        var html = document.documentElement;
+        html.classList.add('js');
+        // Chargeur : à l'arrivée sur le site et au rechargement, pas en naviguant entre les pages
+        try {
+          var nav = performance.getEntriesByType('navigation')[0];
+          var type = nav ? nav.type : 'navigate';
+          var interne = !!document.referrer && new URL(document.referrer).origin === location.origin;
+          if (type === 'reload' || (type !== 'back_forward' && !interne)) html.classList.add('chargement');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
+    <Chargeur />
     <Ambiance />
     <a class="evitement" href="#contenu">Aller au contenu</a>
     <header class="entete">

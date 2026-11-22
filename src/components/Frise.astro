@@ -88,8 +88,8 @@ const placer = (lignes: LigneBrute[], origine: number, terme: number) => {
 
 const vues: Vue[] = [];
 
-// Vue 1 : siècles étudiés
-{
+// Vue 1 : siècles étudiés (au moins deux travaux avec une période, sinon la vue n'a pas de sens)
+if (travaux.length >= 2) {
   const pas = 50;
   const min = Math.min(...travaux.map((e) => e.debut));
   const max = Math.max(...travaux.map((e) => e.fin));
@@ -212,9 +212,17 @@ const vues: Vue[] = [];
   <span id="parcours" class="ancre" aria-hidden="true"></span>
   <div class="entete">
     <div>
-      <p class="surtitre">Recherches et formation</p>
+      <p class="surtitre"><span class="chapitre">Chapitre II</span> Recherches et formation</p>
       <h2 id="titre-frise" class="titre-section">Chronologie</h2>
     </div>
+    {/* Onglets seulement s'il y a plusieurs vues ; sinon, l'étendue de la seule vue */}
+    {vues.length === 1 && (
+      <p class="etendue-seule">
+        <span class="onglet-nom">{vues[0].onglet}</span>
+        <span class="onglet-etendue">{vues[0].etendue}</span>
+      </p>
+    )}
+    {vues.length > 1 && (
     <div class="onglets" role="tablist" aria-label="Choisir la frise">
       {
         vues.map((v, i) => (
@@ -233,6 +241,7 @@ const vues: Vue[] = [];
         ))
       }
     </div>
+    )}
   </div>
 
   {
@@ -240,8 +249,8 @@ const vues: Vue[] = [];
       <div
         class="vue"
         id={`vue-${v.id}`}
-        role="tabpanel"
-        aria-labelledby={`onglet-${v.id}`}
+        role={vues.length > 1 ? 'tabpanel' : undefined}
+        aria-labelledby={vues.length > 1 ? `onglet-${v.id}` : undefined}
         data-vue={v.id}
         hidden={i !== 0}
       >
@@ -434,6 +443,13 @@ const vues: Vue[] = [];
     font-size: 1.05rem;
     line-height: 1.1;
     font-variant-numeric: tabular-nums;
+  }
+
+  .etendue-seule {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    color: var(--gris-or);
   }
 
   .onglet:hover {

@@ -44,7 +44,7 @@ const siecles = (debut: number, fin: number) => {
 >
   <div class="contenu carrousel-entete" data-reveal>
     <div>
-      <p class="surtitre">Mémoires, stages et projets</p>
+      <p class="surtitre"><span class="chapitre">Chapitre III</span> Projets et expériences</p>
       <h2 id="titre-travaux" class="titre-section">Travaux</h2>
     </div>
     <p class="compteur" aria-hidden="true">
@@ -58,23 +58,30 @@ const siecles = (debut: number, fin: number) => {
     {
       travaux.map((t, i) => {
         const d = t.data;
-        const s = siecles(d.debut, d.fin);
+        const s = d.debut !== undefined && d.fin !== undefined ? siecles(d.debut, d.fin) : null;
+        // Grande année en filigrane : début de la période étudiée, sinon année de réalisation
+        const filigrane = d.debut ?? String(d.annee ?? '').match(/\d{4}/)?.[0] ?? deux(i + 1);
         return (
           <article
-            class:list={['diapo', { active: i === 0, 'en-cours': d.enCours }]}
+            class:list={['diapo', { active: i === 0, 'en-cours': d.enCours, illustree: !!d.gravure }]}
             role="group"
             aria-roledescription="diapositive"
             aria-label={`${i + 1} sur ${total} : ${d.titre}`}
           >
+            {d.gravure && <span class="diapo-fond" aria-hidden="true" style={`background-image: url('${d.gravure}')`} />}
             <span class="filigrane" aria-hidden="true">
-              {d.debut}
+              {filigrane}
             </span>
 
             <div class="diapo-texte">
               <p class="diapo-meta anime" style="--i: 0">
                 <span>{d.nature}</span>
-                <span class="point" aria-hidden="true" />
-                <span>{d.annee}</span>
+                {d.annee && (
+                  <>
+                    <span class="point" aria-hidden="true" />
+                    <span>{d.annee}</span>
+                  </>
+                )}
                 {d.enCours && <span class="badge">en cours</span>}
               </p>
               <h3 class="diapo-titre anime" style="--i: 1">
@@ -85,7 +92,7 @@ const siecles = (debut: number, fin: number) => {
                   {d.sousTitre}
                 </p>
               )}
-              <p class="diapo-resume anime" style="--i: 3">
+              <p class="diapo-resume lettrine anime" style="--i: 3">
                 {d.resume}
               </p>
               {d.sources.length > 0 && (
@@ -106,25 +113,41 @@ const siecles = (debut: number, fin: number) => {
             </div>
 
             <div class="diapo-medaillon" aria-hidden="true">
-              <div class="ovale">
-                <span class="ovale-numero">{deux(i + 1)}</span>
-                <span class="ovale-periode">
-                  <span>{d.debut}</span>
-                  <span class="losange" />
-                  <span>{d.fin}</span>
-                </span>
-                <span class="ovale-siecle">
-                  {s[0]}
-                  <sup>e</sup>
-                  {s[1] && (
-                    <>
-                      {' '}– {s[1]}
-                      <sup>e</sup>
-                    </>
-                  )}{' '}
-                  siècle{s[1] ? 's' : ''}
-                </span>
-              </div>
+              {
+                d.gravure ? (
+                  <div class="ovale ovale-gravure">
+                    <img src={d.gravure} alt="" loading={i === 0 ? 'eager' : 'lazy'} decoding="async" />
+                    <span class="ovale-pastille">{deux(i + 1)}</span>
+                  </div>
+                ) : (
+                  <div class="ovale">
+                    <span class="ovale-numero">{deux(i + 1)}</span>
+                    {d.debut !== undefined && d.fin !== undefined ? (
+                      <span class="ovale-periode">
+                        <span>{d.debut}</span>
+                        <span class="losange" />
+                        <span>{d.fin}</span>
+                      </span>
+                    ) : (
+                      d.annee && <span class="ovale-periode">{d.annee}</span>
+                    )}
+                    {s && (
+                      <span class="ovale-siecle">
+                        {s[0]}
+                        <sup>e</sup>
+                        {s[1] && (
+                          <>
+                            {' '}– {s[1]}
+                            <sup>e</sup>
+                          </>
+                        )}{' '}
+                        siècle{s[1] ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                )
+              }
+              {d.credit && <p class="credit">{d.credit}</p>}
             </div>
           </article>
         );
@@ -214,7 +237,7 @@ const siecles = (debut: number, fin: number) => {
     }).observe(carrousel);
 
     document.addEventListener('keydown', (e) => {
-      if (!visible || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (!visible || carrousel.classList.contains('recouverte') || e.altKey || e.ctrlKey || e.metaKey) return;
       const cible = e.target as HTMLElement;
       if (cible.closest('input, textarea, select, [contenteditable]')) return;
       if (e.key === 'ArrowRight') afficher(actuelle + 1);
@@ -504,6 +527,84 @@ const siecles = (debut: number, fin: number) => {
 
   .en-cours .ovale {
     border-color: var(--braise);
+  }
+
+  /* Gravure en fond de diapositive : sépia, très atténuée, fondue vers la gauche */
+  .diapo-fond {
+    position: absolute;
+    inset: -10% -6% -10% 30%;
+    z-index: -2;
+    background-size: cover;
+    background-position: center;
+    filter: sepia(1) saturate(0.6) brightness(0.55) contrast(1.1) blur(1px);
+    opacity: 0.22;
+    -webkit-mask-image: radial-gradient(70% 70% at 70% 50%, #000 30%, transparent 75%);
+    mask-image: radial-gradient(70% 70% at 70% 50%, #000 30%, transparent 75%);
+    pointer-events: none;
+  }
+
+  /* Ovale illustré : la gravure encadrée comme un portrait ancien */
+  .ovale-gravure {
+    padding: 0;
+    gap: 0;
+  }
+
+  .ovale-gravure img {
+    position: absolute;
+    inset: 0.7rem;
+    width: calc(100% - 1.4rem);
+    height: calc(100% - 1.4rem);
+    border-radius: 50%;
+    object-fit: cover;
+    filter: sepia(0.85) saturate(0.75) contrast(1.08) brightness(0.88);
+  }
+
+  /* Image par défaut (papier clair) : assombrie pour s'accorder aux vraies gravures */
+  .ovale-gravure img[src$='defaut.svg'] {
+    filter: sepia(0.6) saturate(0.8) brightness(0.68) contrast(1.15);
+  }
+
+  /* Vernis doré et vignettage par-dessus la gravure */
+  .ovale-gravure::after {
+    content: '';
+    position: absolute;
+    inset: 0.7rem;
+    border-radius: 50%;
+    background:
+      radial-gradient(70% 70% at 50% 40%, transparent 45%, rgba(13, 11, 8, 0.75) 100%),
+      linear-gradient(160deg, rgba(236, 217, 168, 0.18), rgba(120, 80, 30, 0.25));
+    mix-blend-mode: multiply;
+  }
+
+  .ovale-pastille {
+    position: absolute;
+    left: 50%;
+    bottom: -0.2rem;
+    z-index: 2;
+    translate: -50% 0;
+    display: grid;
+    place-items: center;
+    width: 3.6rem;
+    height: 3.6rem;
+    border-radius: 50%;
+    border: 1px solid var(--or);
+    background: var(--carte);
+    box-shadow: 0 0 0 4px var(--carte);
+    font-family: var(--f-script);
+    font-size: 1.7rem;
+    color: var(--or-clair);
+  }
+
+  .credit {
+    margin-top: 1.4rem;
+    max-width: 18rem;
+    margin-inline: auto;
+    text-align: center;
+    font-size: 0.68rem;
+    line-height: 1.4;
+    letter-spacing: 0.04em;
+    font-style: italic;
+    color: rgba(169, 156, 131, 0.75);
   }
 
   .en-cours .ovale-numero {
