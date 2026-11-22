@@ -1,0 +1,330 @@
+---
+// Chargeur : un livre ouvert se dessine au trait doré, ses pages tournent,
+// puis l'écran s'ouvre en cercle depuis le centre pour révéler la page.
+// Affiché à l'arrivée sur le site et au rechargement, pas en naviguant d'une page à l'autre.
+// Sans JavaScript, il n'apparaît jamais (voir la classe html.chargement posée dans Base.astro).
+import { profil } from '../data/profil';
+
+const lignes = [44, 54, 64, 74, 84, 94];
+const ligneGauche = (y: number) => `M32 ${y}C50 ${y - 4} 72 ${y - 3} 90 ${y + 3}`;
+const ligneDroite = (y: number) => `M168 ${y}C150 ${y - 4} 128 ${y - 3} 110 ${y + 3}`;
+const pageDroite = 'M100 34C118 24 150 21 178 26V112C150 107 118 110 100 120Z';
+---
+
+<div class="chargeur" aria-hidden="true">
+  <div class="chargeur-centre">
+    <svg class="livre" viewBox="0 0 200 140">
+      <!-- Tranche et couverture, sous les pages -->
+      <path class="trait" pathLength="1" d="M22 112L16 116C48 111 82 114 100 126C118 114 152 111 184 116L178 112"></path>
+      <path class="trait" pathLength="1" d="M16 116L12 120C46 115 82 118 100 131C118 118 154 115 188 120L184 116"></path>
+
+      <!-- Pages ouvertes -->
+      <path class="trait page" pathLength="1" d="M100 34C82 24 50 21 22 26V112C50 107 82 110 100 120Z"></path>
+      <path class="trait page" pathLength="1" d={pageDroite}></path>
+      <path class="trait" pathLength="1" d="M100 34V120"></path>
+
+      <!-- Lignes d'écriture -->
+      {lignes.map((y, i) => <path class="trait ligne" pathLength="1" d={ligneGauche(y)} style={`--n: ${i}`} />)}
+      {lignes.map((y, i) => <path class="trait ligne" pathLength="1" d={ligneDroite(y)} style={`--n: ${i + 6}`} />)}
+
+      <!-- Signet -->
+      <path class="trait signet" pathLength="1" d="M150 110V134L145 129L140 134V111"></path>
+
+      <!-- Feuilles qui tournent, de droite à gauche -->
+      <g class="feuille">
+        <path class="feuille-fond" d={pageDroite}></path>
+        {lignes.slice(0, 4).map((y) => <path class="feuille-ligne" d={ligneDroite(y)} />)}
+      </g>
+      <g class="feuille feuille-2">
+        <path class="feuille-fond" d={pageDroite}></path>
+        {lignes.slice(0, 4).map((y) => <path class="feuille-ligne" d={ligneDroite(y)} />)}
+      </g>
+    </svg>
+
+    <p class="chargeur-nom">{profil.nom}</p>
+    <p class="chargeur-texte">Ouverture des archives</p>
+    <span class="chargeur-barre"><span></span></span>
+  </div>
+</div>
+
+<script>
+  const html = document.documentElement;
+  const chargeur = document.querySelector<HTMLElement>('.chargeur');
+
+  if (chargeur && html.classList.contains('chargement')) {
+    const debut = performance.now();
+    const dureeMin = 2200; // le temps de voir le livre se dessiner et une page tourner
+    const dureeMax = 6000; // sécurité si une ressource tarde
+
+    const pret = Promise.all([
+      new Promise((ok) => (document.readyState === 'complete' ? ok(null) : window.addEventListener('load', ok, { once: true }))),
+      document.fonts?.ready ?? Promise.resolve(),
+    ]);
+    const plafond = new Promise((ok) => setTimeout(ok, dureeMax));
+
+    Promise.race([pret, plafond]).then(() => {
+      const reste = Math.max(0, dureeMin - (performance.now() - debut));
+      setTimeout(() => {
+        chargeur.classList.add('sortie');
+        html.classList.remove('chargement');
+        setTimeout(() => chargeur.remove(), 1400);
+      }, reste);
+    });
+  } else {
+    chargeur?.remove();
+  }
+</script>
+
+<style>
+  @property --trou {
+    syntax: '<length>';
+    inherits: false;
+    initial-value: 0px;
+  }
+
+  .chargeur {
+    display: none;
+  }
+
+  :global(html.chargement) .chargeur,
+  .chargeur.sortie {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: grid;
+    place-items: center;
+    background:
+      radial-gradient(60% 50% at 50% 45%, rgba(120, 86, 44, 0.22), transparent 70%),
+      #0d0b08;
+  }
+
+  /* Pas de défilement pendant le chargement */
+  :global(html.chargement) {
+    overflow: hidden;
+  }
+
+  .chargeur-centre {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 2rem;
+    text-align: center;
+  }
+
+  .livre {
+    width: min(62vw, 15rem);
+    overflow: visible;
+  }
+
+  .trait {
+    fill: none;
+    stroke: #c9a96e;
+    stroke-width: 1.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .page {
+    fill: #17120d;
+    stroke: #e2c68e;
+  }
+
+  .ligne {
+    stroke: rgba(201, 169, 110, 0.55);
+    stroke-width: 0.9;
+  }
+
+  .signet {
+    stroke: #e07a5f;
+  }
+
+  .feuille {
+    opacity: 0;
+    transform-box: view-box;
+    transform-origin: 100px 77px;
+  }
+
+  .feuille-fond {
+    fill: #1f1811;
+    stroke: #ecd9a8;
+    stroke-width: 1.2;
+    stroke-linejoin: round;
+  }
+
+  .feuille-ligne {
+    fill: none;
+    stroke: rgba(201, 169, 110, 0.5);
+    stroke-width: 0.9;
+    stroke-linecap: round;
+  }
+
+  .chargeur-nom {
+    margin-top: 0.6rem;
+    font-family: 'Pinyon Script', 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(1.9rem, 6vw, 2.6rem);
+    line-height: 1.2;
+    color: #ecd9a8;
+  }
+
+  .chargeur-texte {
+    font-family: 'EB Garamond', Garamond, Georgia, serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: #a99c83;
+  }
+
+  .chargeur-barre {
+    position: relative;
+    width: 9rem;
+    height: 1px;
+    margin-top: 0.4rem;
+    overflow: hidden;
+    background: rgba(201, 169, 110, 0.2);
+  }
+
+  .chargeur-barre span {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, #ecd9a8, transparent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* 1. Le livre se dessine trait par trait */
+    .trait {
+      stroke-dasharray: 1;
+      animation: tracer-livre 1300ms cubic-bezier(0.65, 0, 0.35, 1) both;
+    }
+
+    .ligne {
+      animation-delay: calc(500ms + var(--n) * 45ms);
+    }
+
+    .signet {
+      animation-delay: 900ms;
+    }
+
+    .page {
+      animation:
+        tracer-livre 1300ms cubic-bezier(0.65, 0, 0.35, 1) both,
+        remplir 800ms ease 700ms both;
+    }
+
+    @keyframes tracer-livre {
+      from {
+        stroke-dashoffset: 1;
+      }
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    @keyframes remplir {
+      from {
+        fill: transparent;
+      }
+    }
+
+    /* 2. Puis les pages tournent, l'une après l'autre */
+    .feuille {
+      animation: tourner 1700ms cubic-bezier(0.45, 0, 0.3, 1) 1300ms infinite;
+    }
+
+    .feuille-2 {
+      animation-delay: 2150ms;
+    }
+
+    @keyframes tourner {
+      0% {
+        opacity: 1;
+        transform: scaleX(1);
+      }
+      45% {
+        transform: scaleX(0.08) skewY(-7deg);
+      }
+      55% {
+        transform: scaleX(-0.08) skewY(7deg);
+      }
+      92% {
+        opacity: 1;
+        transform: scaleX(-1);
+      }
+      100% {
+        opacity: 0;
+        transform: scaleX(-1);
+      }
+    }
+
+    /* Texte et barre de progression */
+    .chargeur-nom,
+    .chargeur-texte {
+      animation: apparaitre-chargeur 1000ms ease 600ms both;
+    }
+
+    .chargeur-texte {
+      animation-delay: 900ms;
+    }
+
+    .chargeur-barre span {
+      animation: parcourir 1.6s ease-in-out infinite;
+    }
+
+    @keyframes apparaitre-chargeur {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+    }
+
+    @keyframes parcourir {
+      from {
+        transform: translateX(-100%);
+      }
+      to {
+        transform: translateX(100%);
+      }
+    }
+
+    /* 3. Sortie : le livre s'éloigne et l'écran s'ouvre en cercle depuis le centre */
+    .chargeur.sortie {
+      -webkit-mask-image: radial-gradient(circle at 50% 45%, transparent var(--trou), #000 calc(var(--trou) + 3vmax));
+      mask-image: radial-gradient(circle at 50% 45%, transparent var(--trou), #000 calc(var(--trou) + 3vmax));
+      animation: ouvrir-ecran 1200ms cubic-bezier(0.7, 0, 0.2, 1) 250ms both;
+      pointer-events: none;
+    }
+
+    .chargeur.sortie .chargeur-centre {
+      animation: eloigner 600ms cubic-bezier(0.5, 0, 0.75, 0) both;
+    }
+
+    @keyframes ouvrir-ecran {
+      from {
+        --trou: 0px;
+      }
+      to {
+        --trou: 130vmax;
+      }
+    }
+
+    @keyframes eloigner {
+      to {
+        opacity: 0;
+        transform: scale(1.15);
+        filter: blur(6px);
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chargeur.sortie {
+      animation: fondre 400ms ease both;
+    }
+
+    @keyframes fondre {
+      to {
+        opacity: 0;
+      }
+    }
+  }
+</style>

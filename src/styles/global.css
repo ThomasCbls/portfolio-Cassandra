@@ -73,6 +73,10 @@ body {
   color: var(--ivoire);
   font-family: var(--f-texte);
   line-height: 1.6;
+  /* Chiffres « à l'ancienne » (hauteurs variables) et ligatures, comme dans un livre imprimé */
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  font-variant-ligatures: common-ligatures contextual;
+  font-kerning: normal;
   background:
     radial-gradient(70rem 40rem at 50% -10%, rgba(120, 86, 44, 0.22), transparent 70%),
     radial-gradient(50rem 40rem at 100% 60%, rgba(90, 40, 28, 0.12), transparent 70%),
@@ -205,10 +209,11 @@ a:hover {
   min-height: 100vh;
   min-height: 100svh;
   padding: clamp(5.5rem, 12vh, 7.5rem) calc(var(--gouttiere) + var(--marge-cadre)) clamp(3rem, 8vh, 5rem);
-  /* Voile translucide : la poussière et les halos du fond restent visibles */
+  /* Fond opaque : les écrans s'empilent comme des pages (la poussière dorée passe au-dessus) */
   background:
-    radial-gradient(90% 70% at 12% 0%, rgba(34, 26, 18, 0.55) 0%, transparent 60%),
-    linear-gradient(180deg, rgba(23, 19, 14, 0.35), rgba(23, 19, 14, 0.5));
+    radial-gradient(90% 70% at 12% 0%, #221a12 0%, transparent 60%),
+    radial-gradient(70% 70% at 100% 100%, #1d1610 0%, transparent 55%),
+    #15110d;
   scroll-snap-align: start;
   overflow: clip;
 }
@@ -251,6 +256,41 @@ a:hover {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* ——— Défilement en pages empilées ———
+   Chaque écran reste collé en haut pendant que le suivant glisse par-dessus.
+   --recouvre (0 → 1, calculé au défilement) fait reculer et assombrir l'écran qu'on quitte.
+   Le décalage `top` des écrans plus hauts que la fenêtre est calculé en JavaScript. */
+html.empilement {
+  scroll-snap-type: none;
+}
+
+.empilement main > .ecran {
+  position: sticky;
+  top: 0;
+  transform-origin: 50% 0;
+  transform: scale(calc(1 - var(--recouvre, 0) * 0.07));
+  filter: brightness(calc(1 - var(--recouvre, 0) * 0.65));
+  border-radius: calc(var(--recouvre, 0) * 28px);
+}
+
+.empilement main > .ecran + .ecran {
+  box-shadow:
+    0 -1px 0 rgba(201, 169, 110, 0.25),
+    0 -40px 80px -10px rgba(0, 0, 0, 0.85);
+}
+
+/* ——— Pendant le chargeur, les animations d'arrivée attendent ——— */
+.js.chargement [data-reveal].revele {
+  opacity: 0;
+  translate: 0 2rem;
+  scale: 0.985;
+}
+
+.js.chargement .revele :is(.titre-section, .ecrit),
+.js.chargement .entete .ecrit {
+  animation: none;
 }
 
 /* Les sections s'empilent en cartes */
@@ -442,5 +482,176 @@ a:hover {
     opacity: 1;
     translate: none;
     scale: none;
+  }
+}
+
+/* Texte courant : ligatures rares en plus (ct, st…), à la manière des imprimés anciens */
+.prose,
+.diapo-resume,
+.presentation,
+.competence-detail {
+  font-variant-ligatures: common-ligatures discretionary-ligatures contextual;
+}
+
+/* ——— 5. Lettrines : grande initiale dorée, comme dans un manuscrit ——— */
+.lettrine::first-letter {
+  float: left;
+  margin: 0.04em 0.12em 0 0;
+  font-family: var(--f-affiche);
+  font-size: 3.2em;
+  font-weight: 400;
+  line-height: 0.8;
+  color: var(--or-clair);
+  text-shadow: 0 0 18px rgba(236, 217, 168, 0.3);
+}
+
+/* ——— 6. Notes de bas de page (syntaxe Markdown [^nom]) ——— */
+.prose sup {
+  line-height: 0;
+}
+
+.prose a[data-footnote-ref] {
+  padding: 0 0.15em;
+  font-family: var(--f-affiche);
+  font-size: 0.8em;
+  color: var(--or);
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(201, 169, 110, 0.6);
+}
+
+.prose a[data-footnote-ref]:hover {
+  color: var(--ivoire);
+}
+
+.prose .footnotes {
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--filet);
+  font-size: 0.92rem;
+  color: var(--gris-or);
+}
+
+.prose .footnotes h2 {
+  margin: 0 0 1rem;
+  font-family: var(--f-texte);
+  font-style: normal;
+  font-size: 0.72rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--or);
+}
+
+.prose .footnotes ol {
+  padding-left: 1.4rem;
+}
+
+.prose .footnotes li::marker {
+  font-family: var(--f-affiche);
+  color: var(--or);
+}
+
+.prose .footnotes li p {
+  margin: 0;
+}
+
+.prose .footnotes li:target {
+  background: rgba(236, 217, 168, 0.07);
+  outline: 1px solid var(--filet);
+  outline-offset: 0.4rem;
+}
+
+.prose [data-footnote-backref] {
+  margin-left: 0.35rem;
+  color: var(--or);
+  text-decoration: none;
+}
+
+/* Bulle qui affiche la note au survol de l'appel (voir la fiche d'un travail) */
+.bulle-note {
+  position: absolute;
+  z-index: 60;
+  max-width: min(22rem, 86vw);
+  padding: 0.8rem 1rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #ddd3bd;
+  background: #1b1610;
+  border: 1px solid rgba(201, 169, 110, 0.5);
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  opacity: 0;
+  translate: 0 4px;
+  transition:
+    opacity 200ms ease,
+    translate 200ms ease;
+}
+
+.bulle-note.visible {
+  opacity: 1;
+  translate: none;
+}
+
+/* ——— 7. Chapitres : numéro et fleuron avant chaque surtitre ——— */
+.chapitre {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-right: 0.7rem;
+  color: var(--or-clair);
+}
+
+.chapitre::after {
+  content: '';
+  width: 2.6rem;
+  height: 0.6rem;
+  background: var(--or);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 12' fill='none' stroke='black' stroke-width='1.2' stroke-linecap='round'%3E%3Cpath d='M2 6h16c4 0 6-4 3-4.5s-3 2.7-.5 2.7M58 6H42c-4 0-6 4-3 4.5s3-2.7.5-2.7'/%3E%3Cpath d='M30 1.5 34.5 6 30 10.5 25.5 6z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 12' fill='none' stroke='black' stroke-width='1.2' stroke-linecap='round'%3E%3Cpath d='M2 6h16c4 0 6-4 3-4.5s-3 2.7-.5 2.7M58 6H42c-4 0-6 4-3 4.5s3-2.7.5-2.7'/%3E%3Cpath d='M30 1.5 34.5 6 30 10.5 25.5 6z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* ——— 8. Page qui tourne en passant de l'accueil à une fiche (et retour) ——— */
+@view-transition {
+  navigation: auto;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    mix-blend-mode: normal;
+  }
+
+  ::view-transition-old(root) {
+    z-index: 2;
+    transform-origin: left center;
+    animation: page-tourne 1000ms cubic-bezier(0.55, 0, 0.3, 1) both;
+  }
+
+  ::view-transition-new(root) {
+    z-index: 1;
+    animation: page-dessous 1000ms ease both;
+  }
+
+  @keyframes page-tourne {
+    0% {
+      transform: perspective(2200px) rotateY(0deg);
+      filter: brightness(1);
+    }
+    100% {
+      transform: perspective(2200px) rotateY(-100deg);
+      filter: brightness(0.35);
+    }
+  }
+
+  @keyframes page-dessous {
+    from {
+      transform: scale(0.97);
+      filter: brightness(0.3);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(root) {
+    animation-duration: 0s;
   }
 }
