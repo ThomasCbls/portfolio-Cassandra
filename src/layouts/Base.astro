@@ -25,7 +25,7 @@ const accueil = Astro.url.pathname === '/';
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Pinyon+Script&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Pinyon+Script&family=Libre+Caslon+Display&display=swap"
     />
     <title>{titrePage}</title>
     <script is:inline>document.documentElement.classList.add('js');</script>
@@ -36,10 +36,12 @@ const accueil = Astro.url.pathname === '/';
     <header class="entete">
       {
         accueil ? (
-          <span class="signature">{profil.nom}</span>
+          <span class="signature">
+            <span class="ecrit">{profil.nom}</span>
+          </span>
         ) : (
           <a class="signature" href="/">
-            {profil.nom}
+            <span class="ecrit">{profil.nom}</span>
           </a>
         )
       }
@@ -65,25 +67,31 @@ const accueil = Astro.url.pathname === '/';
       )
     }
     <script>
-      // Apparition au défilement : chaque élément [data-reveal] reçoit .revele en entrant dans l'écran
+      // Apparition au défilement : chaque élément [data-reveal] reçoit .revele en entrant dans l'écran,
+      // et le perd quand il en sort complètement : ses animations se rejouent au retour.
       const elements = document.querySelectorAll<HTMLElement>('[data-reveal]');
-      const reveler = (el: Element) => el.classList.add('revele');
 
       if (!('IntersectionObserver' in window)) {
-        elements.forEach(reveler);
+        elements.forEach((el) => el.classList.add('revele'));
       } else {
-        const observateur = new IntersectionObserver(
+        // Entrée : un peu avant le bas de l'écran
+        const entree = new IntersectionObserver(
           (entrees) => {
-            for (const entree of entrees) {
-              if (entree.isIntersecting) {
-                reveler(entree.target);
-                observateur.unobserve(entree.target);
-              }
-            }
+            for (const e of entrees) if (e.isIntersecting) e.target.classList.add('revele');
           },
           { threshold: 0, rootMargin: '0px 0px -8% 0px' },
         );
-        elements.forEach((el) => observateur.observe(el));
+        // Sortie : seulement quand plus aucun pixel n'est visible (évite les clignotements)
+        const sortie = new IntersectionObserver(
+          (entrees) => {
+            for (const e of entrees) if (!e.isIntersecting) e.target.classList.remove('revele');
+          },
+          { threshold: 0 },
+        );
+        elements.forEach((el) => {
+          entree.observe(el);
+          sortie.observe(el);
+        });
       }
     </script>
   </body>

@@ -372,6 +372,8 @@ const siecles = (debut: number, fin: number) => {
   }
 
   .diapo-titre {
+    font-family: var(--f-affiche);
+    font-weight: 400;
     margin-top: 1rem;
     font-size: clamp(2.4rem, min(6vw, 8.5vh), 5.75rem);
     font-weight: 500;
@@ -686,6 +688,26 @@ const siecles = (debut: number, fin: number) => {
 
     .fleche-btn:hover {
       transform: scale(1.06);
+    }
+
+    /* Hors de l'écran, la diapositive affichée revient à son état de départ */
+    :global(.js) .diapos:not(.revele) .diapo.active .anime {
+      opacity: 0;
+      translate: 2.5rem 0;
+      transition: none;
+    }
+
+    :global(.js) .diapos:not(.revele) .diapo.active .diapo-medaillon {
+      opacity: 0;
+      scale: 0.92;
+      rotate: 4deg;
+      transition: none;
+    }
+
+    :global(.js) .diapos:not(.revele) .diapo.active .filigrane {
+      opacity: 0;
+      translate: 8rem -50%;
+      transition: none;
     }
   }
 

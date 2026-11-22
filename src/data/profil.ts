@@ -2,38 +2,53 @@
 // Remplacez les valeurs d'exemple par les vraies.
 
 export const profil = {
-  nom: 'Camille Laurent',
-  statut: "Étudiante en master d'histoire moderne et contemporaine",
+  nom: 'Cassandra Levêque',
+  statut: "Étudiante en master Humanités Numériques",
   presentation:
     "Je travaille sur le travail des femmes et les usages de l'eau dans la ville, du XVIIᵉ au début du XXᵉ siècle. Mes recherches partent des archives municipales, notariales et hospitalières lyonnaises.",
-  email: 'camille.laurent@exemple.fr',
-  ville: 'Lyon',
+  email: 'levequecassandra83@gmail.com',
+  ville: 'Tours',
+  // Inscription qui fait le tour du médaillon d'accueil
+  devise: 'Histoire · Patrimoine · Humanités numériques',
   // Portrait affiché dans le médaillon ovale : déposer l'image dans public/
   // (ex. '/portrait.jpg'). Laisser vide pour afficher les initiales.
   portrait: '',
   cv: '/cv.pdf',
   liens: [
-    { nom: 'LinkedIn', url: 'https://www.linkedin.com/' },
-    { nom: 'HAL', url: 'https://hal.science/' },
+    { nom: 'LinkedIn', url: 'https://www.linkedin.com/in/cassandra-lev%C3%AAque-4055b9229/', target: '_blank' },
   ],
 };
 
-// Parcours, du plus récent au plus ancien
+// Parcours, du plus récent au plus ancien.
+// Par défaut, une entrée est affichée comme des études (filet doré).
+// Ajouter `alternance: true` ou `stage: true` pour changer son affichage sur la frise.
 export const parcours = [
   {
-    dates: '2024–2026',
-    titre: "Master Histoire, parcours Histoire moderne et contemporaine",
-    lieu: 'Université Lumière Lyon 2',
+    dates: 'septembre 2026–2028',
+    titre: "Master Humanités Numériques PARCOURS Médiation numérique",
+    lieu: 'CESR, Université de Tours',
   },
   {
-    dates: '2024',
-    titre: 'Stage de deux mois au service des fonds anciens',
-    lieu: 'Archives départementales du Rhône',
+    dates: '2025',
+    titre: 'Stage en archéologie et médiation scientifique',
+    lieu: 'Association Jean Jousse, Sarthe',
+    stage: true,
   },
   {
-    dates: '2021–2024',
-    titre: 'Licence Histoire',
-    lieu: 'Université Lumière Lyon 2',
+    dates: '2023– avril 2026',
+    titre: 'Licence Histoire, PARCOURS Patrimoine',
+    lieu: 'Université du Mans',
+  },
+  {
+    dates: '2022–2023',
+    titre: 'Chargée de communication',
+    lieu: 'Domaine du Chapeau, Neuville-sur-Sarthe',
+    alternance: true,
+  },
+  {
+    dates: '2022–2023',
+    titre: 'BTS Communication en alternance',
+    lieu: 'ECOFAC au Mans',
   },
 ];
 
@@ -47,17 +62,17 @@ export const competences = [
   },
   {
     nom: 'Latin',
-    detail: 'Traduction de sources médiévales et modernes.',
+    detail: 'Traduction de sources antiques et médiévales.',
     icone: 'colonnes',
   },
   {
-    nom: 'Fonds notariaux',
-    detail: 'Dépouillement et analyse : inventaires, contrats, testaments.',
+    nom: 'Traitements textes & Images',
+    detail: 'OCR, HTR, traitement et analyse de textes historiques.',
     icone: 'sceau',
   },
   {
-    nom: 'Transcription assistée',
-    detail: "Transkribus : entraînement de modèles de reconnaissance d'écriture.",
+    nom: 'Oxygen',
+    detail: "Oxygen : XML editing.",
     icone: 'loupe',
   },
   {
@@ -72,7 +87,7 @@ export const competences = [
   },
   {
     nom: 'Médiation',
-    detail: "Ateliers pour les publics scolaires à partir de documents d'archives.",
+    detail: "Ateliers pour les publics variés à partir de documents historiques et sources archéologiques.",
     icone: 'livre-ouvert',
   },
 ];

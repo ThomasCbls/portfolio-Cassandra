@@ -46,8 +46,8 @@
         x: Math.random() * largeur,
         y: Math.random() * hauteur,
         r: 0.4 + profondeur * 1.7,
-        vx: (Math.random() - 0.5) * 0.04,
-        vy: -(0.03 + profondeur * 0.14),
+        vx: (Math.random() - 0.5) * 0.02,
+        vy: -(0.015 + profondeur * 0.07),
         phase: Math.random() * Math.PI * 2,
         profondeur,
         alpha: 0.25 + profondeur * 0.6,
@@ -94,8 +94,8 @@
       ctx.clearRect(0, 0, largeur, hauteur);
 
       for (const g of grains) {
-        g.x += g.vx + Math.sin(temps * 0.005 + g.phase) * 0.07 * g.profondeur;
-        g.y += g.vy - elan * 0.12 * g.profondeur;
+        g.x += g.vx + Math.sin(temps * 0.0025 + g.phase) * 0.035 * g.profondeur;
+        g.y += g.vy - elan * 0.06 * g.profondeur;
 
         // Les grains s'écartent doucement du curseur
         const dx = g.x - souris.x;

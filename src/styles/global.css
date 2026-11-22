@@ -30,6 +30,8 @@
   --f-titre: 'Cormorant Garamond', 'Cormorant', Garamond, Georgia, serif;
   --f-texte: 'EB Garamond', Garamond, Georgia, serif;
   --f-script: 'Pinyon Script', 'Cormorant Garamond', Georgia, serif;
+  /* Grands titres droits : accents bien posés (le circonflexe de Cormorant flotte trop haut) */
+  --f-affiche: 'Libre Caslon Display', 'Cormorant Garamond', Georgia, serif;
 
   --t-0: 1rem;
   --t-1: 1.333rem;
@@ -274,6 +276,54 @@ a:hover {
   line-height: 1.15;
   color: var(--or-clair);
   margin-top: 0.1rem;
+}
+
+/* ——— Titres calligraphiés qui s'écrivent ———
+   Un masque balaie le titre de gauche à droite, avec un bord penché et flou comme une plume.
+   La marge intérieure (compensée par une marge négative) évite de couper les boucles. */
+.titre-section {
+  width: fit-content;
+  padding: 0.15em 0.4em 0.35em 0.25em;
+  margin: -0.15em -0.4em -0.35em -0.25em;
+}
+
+.ecrit {
+  display: inline-block;
+  padding: 0.15em 0.4em 0.35em 0.25em;
+  margin: -0.15em -0.4em -0.35em -0.25em;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .js .titre-section,
+  .js .ecrit {
+    -webkit-mask-image: linear-gradient(100deg, #000 45%, transparent 55%);
+    mask-image: linear-gradient(100deg, #000 45%, transparent 55%);
+    -webkit-mask-size: 300% 100%;
+    mask-size: 300% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: 83% 0;
+    mask-position: 83% 0;
+  }
+
+  /* Le titre s'écrit quand son bloc est à l'écran ; il se réinitialise quand le bloc en sort.
+     Les titres hors bloc animé (signature de l'en-tête) s'écrivent au chargement. */
+  .js .revele :is(.titre-section, .ecrit),
+  .js .revele:is(.titre-section, .ecrit),
+  .js .entete .ecrit {
+    animation: ecrire 2.6s cubic-bezier(0.3, 0.15, 0.35, 1) 0.1s both;
+  }
+
+  @keyframes ecrire {
+    from {
+      -webkit-mask-position: 83% 0;
+      mask-position: 83% 0;
+    }
+    to {
+      -webkit-mask-position: 17% 0;
+      mask-position: 17% 0;
+    }
+  }
 }
 
 /* Filet doré qui s'efface vers la droite, losange à gauche */

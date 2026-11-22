@@ -16,6 +16,8 @@ interface Etape {
   dates: string;
   titre: string;
   lieu: string;
+  alternance?: boolean;
+  stage?: boolean;
 }
 
 interface Props {
@@ -53,6 +55,7 @@ interface LigneBrute {
   enCours: boolean;
   bref?: boolean;
   href?: string;
+  genre?: 'alternance' | 'stage';
 }
 
 interface Vue {
@@ -63,7 +66,7 @@ interface Vue {
   traits: number[];
   bandes: { nom: string; gauche: number; largeur: number }[];
   lignes: (LigneBrute & { gauche: number; largeur: number; bref: boolean; aDroite: boolean })[];
-  legende: { texte: string; enCours?: boolean }[];
+  legende: { texte: string; enCours?: boolean; genre?: 'alternance' | 'stage' }[];
 }
 
 const placer = (lignes: LigneBrute[], origine: number, terme: number) => {
@@ -139,22 +142,37 @@ const vues: Vue[] = [];
 
 // Vue 2 : parcours (années universitaires : de septembre à juin)
 {
-  const anneeCourante = new Date().getFullYear();
+  // Les dates peuvent préciser le mois : « septembre 2026–2028 », « 2023–avril 2026 ».
+  // Sans mois, une période commence en septembre et finit en juin (année universitaire).
+  const mois = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const lireDate = (texte: string) => {
+    const annee = Number(texte.match(/\d{4}/)?.[0]);
+    const m = mois.findIndex((nom) => texte.toLowerCase().includes(nom));
+    return { annee, mois: m >= 0 ? m + 1 : null };
+  };
+  const maintenant = new Date();
+  const aujourdhui = maintenant.getFullYear() + maintenant.getMonth() / 12;
+
   const brutes: LigneBrute[] = parcours.map((p) => {
-    const annees = (p.dates.match(/\d{4}/g) ?? []).map(Number);
-    const a = annees[0];
-    const b = annees[annees.length - 1];
-    const ponctuel = annees.length === 1;
+    const morceaux = p.dates.split(/[–—-]/).map((t) => t.trim()).filter((t) => /\d{4}/.test(t));
+    const d = lireDate(morceaux[0]);
+    const f = lireDate(morceaux[morceaux.length - 1]);
+    const ponctuel = morceaux.length === 1 && d.mois === null;
+    // Début : premier jour du mois (septembre par défaut) ; fin : dernier jour du mois (juin par défaut)
+    const debut = ponctuel ? d.annee + 0.4 : d.annee + ((d.mois ?? 9) - 1) / 12;
+    const fin = ponctuel ? d.annee + 0.6 : f.annee + (morceaux.length === 1 ? d.mois ?? 6 : f.mois ?? 6) / 12;
     return {
       titre: p.titre,
       dates: p.dates,
       meta: [p.lieu],
-      debut: ponctuel ? a + 0.4 : a + 0.7,
-      fin: ponctuel ? a + 0.6 : b + 0.5,
-      libelleDebut: String(a),
-      libelleFin: String(b),
-      enCours: !ponctuel && b >= anneeCourante,
+      debut,
+      fin,
+      libelleDebut: String(d.annee),
+      libelleFin: String(f.annee),
+      // En cours : la période a commencé et n'est pas terminée à la date de mise en ligne
+      enCours: !ponctuel && debut <= aujourdhui && aujourdhui < fin,
       bref: ponctuel,
+      genre: p.alternance ? 'alternance' : p.stage ? 'stage' : undefined,
     };
   });
   const toutes = parcours.flatMap((p) => (p.dates.match(/\d{4}/g) ?? []).map(Number));
@@ -181,7 +199,9 @@ const vues: Vue[] = [];
     bandes,
     lignes,
     legende: [
-      { texte: 'Formation et expériences' },
+      ...(brutes.some((l) => !l.genre) ? [{ texte: 'Études' }] : []),
+      ...(brutes.some((l) => l.genre === 'alternance') ? [{ texte: 'Alternance', genre: 'alternance' as const }] : []),
+      ...(brutes.some((l) => l.genre === 'stage') ? [{ texte: 'Stage', genre: 'stage' as const }] : []),
       ...(brutes.some((l) => l.enCours) ? [{ texte: 'En cours', enCours: true }] : []),
     ],
   });
@@ -253,7 +273,7 @@ const vues: Vue[] = [];
               const Corps = l.href ? 'a' : 'div';
               return (
                 <li
-                  class:list={['ligne', { 'a-droite': l.aDroite, 'en-cours': l.enCours, bref: l.bref }]}
+                  class:list={['ligne', l.genre, { 'a-droite': l.aDroite, 'en-cours': l.enCours, bref: l.bref }]}
                   style={`--gauche: ${l.gauche}%; --largeur: ${l.largeur}%; --rang: ${rang}`}
                 >
                   <Corps class="corps" href={l.href}>
@@ -277,6 +297,7 @@ const vues: Vue[] = [];
                       </span>
                       <span class="meta">
                         <span class="dates">{l.dates}</span>
+                        {l.genre && <span class="type">{l.genre === 'stage' ? 'Stage' : 'Alternance'}</span>}
                         {l.meta.map((m) => (
                           <span class="info">{m}</span>
                         ))}
@@ -293,7 +314,7 @@ const vues: Vue[] = [];
 
         <p class="legende">
           {v.legende.map((g) => (
-            <span class:list={['legende-item', { 'legende-en-cours': g.enCours }]}>
+            <span class:list={['legende-item', g.genre, { 'legende-en-cours': g.enCours }]}>
               <span class="pastille" aria-hidden="true" />
               {g.texte}
             </span>
@@ -839,6 +860,77 @@ const vues: Vue[] = [];
     background: linear-gradient(90deg, var(--braise-sombre), var(--braise-clair), var(--braise));
   }
 
+  /* ——— Types d'expérience (vue parcours) ———
+     Études : filet doré continu.
+     Alternance : filet vert-de-gris en tirets alternés, comme l'école et l'entreprise.
+     Stage : filet bleu ardoise. */
+  .alternance {
+    --t: #b18411;
+    --t-clair: #a866d6;
+    --t-sombre: #b18411;
+  }
+
+  .stage {
+    --t: #8fa8c8;
+    --t-clair: #9a42e1;
+    --t-sombre: #edc525;
+  }
+
+  .type {
+    padding: 0 0.45rem;
+    border: 1px solid color-mix(in srgb, var(--t) 65%, transparent);
+    border-radius: 999px;
+    color: var(--t-clair);
+    letter-spacing: 0.16em;
+  }
+
+  .type::before {
+    content: none;
+  }
+
+  .alternance .barre {
+    background: repeating-linear-gradient(90deg, var(--t-clair) 0 14px, transparent 14px 18px, var(--t-sombre) 18px 30px, transparent 30px 34px);
+  }
+
+  .stage .barre {
+    background: linear-gradient(90deg, var(--t-sombre), var(--t-clair) 50%, var(--t));
+  }
+
+  :is(.alternance, .stage) .barre::before,
+  :is(.alternance, .stage) .barre::after {
+    border-color: var(--t-clair);
+  }
+
+  :is(.alternance, .stage) .projection {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--t-clair) 16%, transparent), color-mix(in srgb, var(--t-clair) 4%, transparent) 45%, transparent);
+    border-color: color-mix(in srgb, var(--t-clair) 45%, transparent);
+  }
+
+  :is(.alternance, .stage) .repere {
+    background: var(--t-clair);
+  }
+
+  :is(.alternance, .stage) .corps:is(:hover, :focus-visible) .nom {
+    color: var(--t-clair);
+  }
+
+  :is(.alternance, .stage) .corps:is(:hover, :focus-visible) .barre {
+    box-shadow: 0 0 18px 1px color-mix(in srgb, var(--t-clair) 40%, transparent);
+  }
+
+  :is(.alternance, .stage) .corps:is(:hover, :focus-visible) .barre::before,
+  :is(.alternance, .stage) .corps:is(:hover, :focus-visible) .barre::after {
+    background: var(--t-clair);
+  }
+
+  .legende-item.alternance .pastille {
+    background: repeating-linear-gradient(90deg, var(--t-clair) 0 7px, transparent 7px 9px, var(--t-sombre) 9px 15px, transparent 15px 17px);
+  }
+
+  .legende-item.stage .pastille {
+    background: linear-gradient(90deg, var(--t-sombre), var(--t-clair), var(--t));
+  }
+
   /* Écrans peu hauts : frise resserrée pour tenir dans la fenêtre */
   @media (max-height: 62rem) and (min-width: 40rem) {
     .entete .titre-section {
@@ -914,28 +1006,34 @@ const vues: Vue[] = [];
 
   /* Animations : les barres se tracent à l'arrivée, une à une */
   @media (prefers-reduced-motion: no-preference) {
-    .etiquette {
+    /* Tant que la frise n'est pas à l'écran : étiquettes masquées, barres non tracées.
+       Dès qu'elle y entre, tout se trace ; quand elle en sort, tout se réinitialise. */
+    :global(.js) .frise:not(.revele) .etiquette {
+      opacity: 0;
+    }
+
+    :global(.js) .frise:not(.revele) .barre {
+      clip-path: inset(-12px 100% -12px -12px);
+    }
+
+    :global(.js) .frise.revele .etiquette,
+    :global(html:not(.js)) .etiquette {
       animation: apparaitre 700ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
       animation-delay: calc(200ms + var(--rang) * 130ms);
     }
 
-    .barre {
+    :global(.js) .frise.revele .barre,
+    :global(html:not(.js)) .barre {
       animation: tracer 1000ms cubic-bezier(0.65, 0, 0.25, 1) backwards;
       animation-delay: calc(350ms + var(--rang) * 130ms);
     }
 
-    .en-cours .barre {
+    :global(.js) .frise.revele .en-cours .barre,
+    :global(html:not(.js)) .en-cours .barre {
       animation:
         tracer 1000ms cubic-bezier(0.65, 0, 0.25, 1) backwards,
         miroiter 4s linear infinite;
       animation-delay: calc(350ms + var(--rang) * 130ms), 0s;
-    }
-
-    /* Les barres attendent que la frise soit à l'écran pour se tracer */
-    :global(.js) .frise:not(.revele) .etiquette,
-    :global(.js) .frise:not(.revele) .barre,
-    :global(.js) .frise:not(.revele) .barre::after {
-      animation-play-state: paused;
     }
 
     .en-cours .barre::after {

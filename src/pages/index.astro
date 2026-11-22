@@ -4,6 +4,7 @@ import Base from '../layouts/Base.astro';
 import Frise from '../components/Frise.astro';
 import Carrousel from '../components/Carrousel.astro';
 import Icone from '../components/Icone.astro';
+import Monogramme from '../components/Monogramme.astro';
 import { profil, parcours, competences } from '../data/profil';
 
 const travaux = (await getCollection('travaux')).sort(
@@ -66,34 +67,56 @@ const ecrans = [
   <!-- I. Introduction -->
   <section id="accueil" class="ecran ouverture" aria-labelledby="nom">
     <div class="contenu ouverture-grille" data-reveal>
-      <div class="ouverture-texte">
-        <p class="surtitre">Portfolio · Histoire</p>
-        <p class="script-intro" aria-hidden="true">Introduction</p>
-        <h1 id="nom">{profil.nom}</h1>
-        <div class="filet"></div>
-        <p class="statut">{profil.statut}</p>
-        <p class="presentation">{profil.presentation}</p>
-        <div class="actions">
+      <!-- Masqué tant que le médaillon n'a pas été ouvert (visible d'emblée sans JavaScript) -->
+      <div class="ouverture-texte" id="intro-texte">
+        <p class="surtitre" style="--i: 0">Portfolio · Histoire</p>
+        <p class="script-intro" aria-hidden="true" style="--i: 1"><span class="ecrit">Introduction</span></p>
+        <h1 id="nom" tabindex="-1" style="--i: 2">{profil.nom}</h1>
+        <div class="filet" style="--i: 3"></div>
+        <p class="statut" style="--i: 4">{profil.statut}</p>
+        <p class="presentation" style="--i: 5">{profil.presentation}</p>
+        <div class="actions" style="--i: 6">
           <a class="bouton bouton-plein" href="#travaux">Découvrir mes travaux</a>
           <a class="bouton" href={profil.cv} download>Télécharger le CV</a>
         </div>
       </div>
 
-      <div class="medaillon" aria-hidden={profil.portrait ? undefined : 'true'}>
-        <div class="medaillon-cadre">
-          {
-            profil.portrait ? (
-              <img src={profil.portrait} alt={`Portrait de ${profil.nom}`} />
-            ) : (
-              <div class="monogramme">
-                <span class="initiales">{initiales}</span>
-                <span class="devise">
-                  {profil.ville} · {enRomain(annee)}
+      <div class="medaillon-zone">
+        <button
+          type="button"
+          class="medaillon"
+          aria-expanded="false"
+          aria-controls="intro-texte"
+          aria-label={`Ouvrir le portfolio de ${profil.nom}`}
+          data-curseur="Ouvrir"
+        >
+          <span class="medaillon-onde" aria-hidden="true"></span>
+          <span class="medaillon-onde medaillon-onde-2" aria-hidden="true"></span>
+          <span class="medaillon-cadre">
+            {
+              profil.portrait ? (
+                <img src={profil.portrait} alt="" />
+              ) : (
+                <span class="monogramme">
+                  <Monogramme
+                    initiales={initiales}
+                    inscription={`${profil.nom} ✦ ${profil.devise} ✦ ${profil.ville} ✦ `.toUpperCase()}
+                    annee={enRomain(annee)}
+                  />
                 </span>
-              </div>
-            )
-          }
-        </div>
+              )
+            }
+          </span>
+        </button>
+
+        <p class="invitation" aria-hidden="true">
+          <span class="invitation-trait"></span>
+          <span class="invitation-texte">
+            <span class="sur-souris">Cliquez sur le médaillon</span>
+            <span class="sur-tactile">Touchez le médaillon</span>
+          </span>
+          <span class="invitation-trait"></span>
+        </p>
       </div>
     </div>
 
@@ -151,8 +174,14 @@ const ecrans = [
         {
           profil.liens.map((l) => (
             <li>
-              <a class="bouton" href={l.url} rel="me">
+              <a
+                class="bouton"
+                href={l.url}
+                target={'target' in l ? l.target : undefined}
+                rel={'target' in l && l.target === '_blank' ? 'me noopener noreferrer' : 'me'}
+              >
                 {l.nom}
+                {'target' in l && l.target === '_blank' && <span class="visuellement-cache"> (nouvel onglet)</span>}
               </a>
             </li>
           ))
@@ -166,6 +195,85 @@ const ecrans = [
     </p>
   </section>
 </Base>
+
+<script>
+  // ——— Ouverture de l'introduction ———
+  // Au départ, seul le médaillon est affiché. Au clic, il glisse à sa place
+  // (technique FLIP : on mesure avant / après, puis on anime l'écart) et le texte apparaît.
+  const ouverture = document.querySelector<HTMLElement>('.ouverture');
+  const medaillon = ouverture?.querySelector<HTMLButtonElement>('.medaillon');
+  const titre = ouverture?.querySelector<HTMLElement>('h1');
+  const cle = 'intro-ouverte';
+  const reduit = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const marquerOuvert = () => {
+    if (!ouverture || !medaillon) return;
+    ouverture.classList.add('ouverte');
+    medaillon.setAttribute('aria-expanded', 'true');
+    medaillon.removeAttribute('data-curseur');
+    medaillon.tabIndex = -1;
+    try {
+      sessionStorage.setItem(cle, '1');
+    } catch {
+      // stockage indisponible (navigation privée) : sans conséquence
+    }
+  };
+
+  const ouvrir = () => {
+    if (!ouverture || !medaillon || ouverture.classList.contains('ouverte')) return;
+
+    if (reduit) {
+      marquerOuvert();
+      titre?.focus({ preventScroll: true });
+      return;
+    }
+
+    const avant = medaillon.getBoundingClientRect();
+    ouverture.classList.add('eclat');
+    marquerOuvert();
+    const apres = medaillon.getBoundingClientRect();
+
+    const dx = avant.left + avant.width / 2 - (apres.left + apres.width / 2);
+    const dy = avant.top + avant.height / 2 - (apres.top + apres.height / 2);
+    const echelle = avant.width / apres.width;
+    const depart = `translate(${dx}px, ${dy}px) scale(${echelle})`;
+    const appui = `translate(${dx}px, ${dy}px) scale(${echelle * 0.94})`;
+
+    medaillon.animate([{ transform: depart }, { transform: appui, offset: 0.12 }, { transform: 'none' }], {
+      duration: 1400,
+      easing: 'cubic-bezier(0.65, 0, 0.25, 1)',
+    });
+
+    titre?.focus({ preventScroll: true });
+  };
+
+  // Déjà ouvert pendant cette visite : on n'impose pas de recliquer en revenant d'une fiche
+  // (bouton Retour ou lien interne). Un rechargement de la page (F5, Ctrl+Maj+R) ou une arrivée
+  // depuis un autre site remet l'introduction à zéro.
+  const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+  const rechargement = navigation?.type === 'reload';
+  let depuisLeSite = false;
+  try {
+    depuisLeSite = !!document.referrer && new URL(document.referrer).origin === location.origin;
+  } catch {
+    depuisLeSite = false;
+  }
+  const retour = navigation?.type === 'back_forward' || depuisLeSite;
+
+  let dejaOuvert = false;
+  try {
+    if (rechargement) sessionStorage.removeItem(cle);
+    dejaOuvert = !rechargement && retour && sessionStorage.getItem(cle) === '1';
+  } catch {
+    dejaOuvert = false;
+  }
+  if (dejaOuvert && ouverture) {
+    ouverture.classList.add('sans-animation');
+    marquerOuvert();
+  }
+
+  medaillon?.addEventListener('click', ouvrir);
+</script>
 
 <script>
   // Le repère latéral suit l'écran affiché
@@ -279,11 +387,17 @@ const ecrans = [
   }
 
   h1 {
-    font-size: clamp(3.25rem, 10vw, 8rem);
-    font-weight: 500;
-    line-height: 0.92;
+    font-family: var(--f-affiche);
+    font-size: clamp(3rem, 9vw, 7.25rem);
+    font-weight: 400;
+    line-height: 0.95;
     letter-spacing: -0.015em;
     color: var(--ivoire);
+  }
+
+  /* Le titre reçoit le focus à l'ouverture (pour les lecteurs d'écran) : pas de cadre visible */
+  #nom:focus {
+    outline: none;
   }
 
   .ouverture .filet {
@@ -313,13 +427,48 @@ const ecrans = [
     margin-top: 2rem;
   }
 
-  .medaillon {
+  /* Médaillon : un bouton tant que l'introduction est fermée */
+  .medaillon-zone {
+    position: relative;
     justify-self: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     width: min(100%, 23rem);
+  }
+
+  .medaillon {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    border-radius: 50%;
+    transform-origin: center;
+  }
+
+  .ouverte .medaillon {
+    cursor: default;
+  }
+
+  .medaillon:focus-visible {
+    outline: none;
+  }
+
+  .medaillon:focus-visible .medaillon-cadre {
+    box-shadow:
+      0 0 0 6px var(--carte),
+      0 0 0 8px var(--or-clair),
+      0 30px 60px -20px rgba(0, 0, 0, 0.8);
   }
 
   .medaillon-cadre {
     position: relative;
+    display: block;
     aspect-ratio: 3 / 4;
     border-radius: 50%;
     padding: 0.6rem;
@@ -328,6 +477,7 @@ const ecrans = [
       0 0 0 6px var(--carte),
       0 0 0 7px var(--filet),
       0 30px 60px -20px rgba(0, 0, 0, 0.8);
+    transition: box-shadow 500ms ease;
   }
 
   .medaillon-cadre img,
@@ -358,6 +508,196 @@ const ecrans = [
     color: var(--or-clair);
     text-shadow: 0 0 40px rgba(236, 217, 168, 0.25);
     padding-right: 0.15em;
+    transition: text-shadow 500ms ease;
+  }
+
+  /* Ondes dorées qui invitent au clic */
+  .medaillon-onde {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid var(--or-clair);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Invitation sous le médaillon */
+  .invitation {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    margin-top: clamp(1.75rem, 5vh, 2.75rem);
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--or-clair);
+    white-space: nowrap;
+  }
+
+  .invitation-trait {
+    width: 2.5rem;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--or));
+  }
+
+  .invitation-trait:last-child {
+    background: linear-gradient(90deg, var(--or), transparent);
+  }
+
+  .sur-tactile {
+    display: none;
+  }
+
+  @media (hover: none) {
+    .sur-souris {
+      display: none;
+    }
+
+    .sur-tactile {
+      display: inline;
+    }
+  }
+
+  /* ——— État fermé (avec JavaScript seulement) : les initiales seules, au centre ——— */
+  :global(.js) .ouverture:not(.ouverte) .ouverture-grille {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  :global(.js) .ouverture:not(.ouverte) .ouverture-texte {
+    display: none;
+  }
+
+  :global(.js) .ouverture:not(.ouverte) .medaillon-zone {
+    width: min(78vw, 25rem, 39vh);
+  }
+
+  :global(.js) .ouverture:not(.ouverte) .medaillon:hover .medaillon-cadre {
+    box-shadow:
+      0 0 0 6px var(--carte),
+      0 0 0 7px var(--or),
+      0 0 60px -6px rgba(236, 217, 168, 0.35),
+      0 30px 60px -20px rgba(0, 0, 0, 0.8);
+  }
+
+  :global(.js) .ouverture:not(.ouverte) .medaillon:hover .monogramme {
+    filter: brightness(1.15) drop-shadow(0 0 18px rgba(236, 217, 168, 0.25));
+  }
+
+  .monogramme {
+    transition: filter 500ms ease;
+  }
+
+  :global(html:not(.js)) .invitation,
+  .ouverte .invitation {
+    display: none;
+  }
+
+  :global(.js) .ouverture:not(.ouverte) .defiler {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .defiler {
+    transition: opacity 800ms ease 1.6s;
+  }
+
+  .sans-animation .defiler {
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* Respiration lente du médaillon et ondes qui s'en échappent */
+    :global(.js) .ouverture:not(.ouverte) .medaillon {
+      animation: respirer 3.2s ease-in-out infinite;
+    }
+
+    :global(.js) .ouverture:not(.ouverte) .medaillon-onde {
+      animation: onde 3.2s cubic-bezier(0.2, 0.7, 0.2, 1) infinite;
+    }
+
+    :global(.js) .ouverture:not(.ouverte) .medaillon-onde-2 {
+      animation-delay: 1.6s;
+    }
+
+    :global(.js) .ouverture:not(.ouverte) .invitation {
+      animation: inviter 3.2s ease-in-out infinite;
+    }
+
+    @keyframes respirer {
+      50% {
+        transform: scale(1.025);
+      }
+    }
+
+    @keyframes onde {
+      0% {
+        opacity: 0.6;
+        transform: scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(1.22);
+      }
+    }
+
+    @keyframes inviter {
+      0%,
+      100% {
+        opacity: 0.55;
+      }
+      50% {
+        opacity: 1;
+      }
+    }
+
+    /* Au clic : un éclat d'or part du médaillon */
+    .eclat .medaillon-onde {
+      animation: eclat 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    }
+
+    .eclat .medaillon-onde-2 {
+      animation-delay: 140ms;
+    }
+
+    @keyframes eclat {
+      0% {
+        opacity: 0.9;
+        transform: scale(1);
+        border-width: 2px;
+      }
+      100% {
+        opacity: 0;
+        transform: scale(1.6);
+        border-width: 1px;
+      }
+    }
+
+    /* Le texte de l'introduction surgit ligne à ligne */
+    .ouverte:not(.sans-animation) .ouverture-texte > * {
+      animation: surgir 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+      animation-delay: calc(550ms + var(--i) * 140ms);
+    }
+
+    .ouverte:not(.sans-animation) .ouverture-texte > .filet {
+      animation-name: deplier;
+      transform-origin: left center;
+    }
+
+    @keyframes surgir {
+      from {
+        opacity: 0;
+        transform: translateY(1.75rem);
+        filter: blur(6px);
+      }
+    }
+
+    @keyframes deplier {
+      from {
+        opacity: 0;
+        transform: scaleX(0);
+      }
+    }
   }
 
   .devise {
@@ -423,6 +763,11 @@ const ecrans = [
   /* ——— Compétences ——— */
   .competences-entete {
     text-align: center;
+  }
+
+  .competences-entete .titre-section,
+  .contact .titre-section {
+    margin-inline: auto;
   }
 
   .competences-entete .filet {
@@ -613,7 +958,7 @@ const ecrans = [
       grid-template-columns: 1fr;
     }
 
-    .medaillon {
+    .medaillon-zone {
       order: -1;
       width: min(60%, 13rem);
     }
