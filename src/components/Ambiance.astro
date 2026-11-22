@@ -1,0 +1,383 @@
+---
+// Ambiance de la page :
+//  - fond animé : poussière dorée en suspension et halos de lumière qui dérivent ;
+//  - curseur doux : un point qui suit la souris et un anneau qui le rattrape.
+// Rien de tout cela sur écran tactile pour le curseur, ni avec « réduire les animations ».
+---
+
+<div class="ambiance" aria-hidden="true">
+  <span class="halo halo-or"></span>
+  <span class="halo halo-braise"></span>
+  <canvas class="poussiere"></canvas>
+</div>
+
+<div class="curseur" aria-hidden="true">
+  <span class="curseur-anneau"><span class="curseur-texte"></span></span>
+  <span class="curseur-point"></span>
+</div>
+
+<script>
+  const reduit = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ——— Poussière dorée ——— */
+  const toile = document.querySelector<HTMLCanvasElement>('.poussiere');
+  const ctx = toile?.getContext('2d');
+
+  if (toile && ctx && !reduit) {
+    interface Grain {
+      x: number;
+      y: number;
+      r: number;
+      vx: number;
+      vy: number;
+      phase: number;
+      profondeur: number;
+      alpha: number;
+    }
+
+    let largeur = 0;
+    let hauteur = 0;
+    let grains: Grain[] = [];
+    const souris = { x: -9999, y: -9999, px: 0, py: 0 };
+
+    const nouveau = (): Grain => {
+      const profondeur = Math.random();
+      return {
+        x: Math.random() * largeur,
+        y: Math.random() * hauteur,
+        r: 0.4 + profondeur * 1.7,
+        vx: (Math.random() - 0.5) * 0.04,
+        vy: -(0.03 + profondeur * 0.14),
+        phase: Math.random() * Math.PI * 2,
+        profondeur,
+        alpha: 0.25 + profondeur * 0.6,
+      };
+    };
+
+    const redimensionner = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      largeur = window.innerWidth;
+      hauteur = window.innerHeight;
+      toile.width = largeur * dpr;
+      toile.height = hauteur * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const nombre = Math.round(Math.min(120, (largeur * hauteur) / 13000));
+      grains = Array.from({ length: nombre }, nouveau);
+    };
+
+    redimensionner();
+    window.addEventListener('resize', redimensionner);
+    window.addEventListener('pointermove', (e) => {
+      souris.x = e.clientX;
+      souris.y = e.clientY;
+    });
+
+    let temps = 0;
+    let dernierDefilement = window.scrollY;
+    let elan = 0;
+    let anim = 0;
+
+    const dessiner = () => {
+      temps += 1;
+
+      // Le défilement souffle légèrement sur la poussière
+      const delta = window.scrollY - dernierDefilement;
+      dernierDefilement = window.scrollY;
+      elan += (delta - elan) * 0.08;
+
+      // Parallaxe douce selon la position de la souris
+      const cibleX = souris.x < -999 ? 0 : souris.x - largeur / 2;
+      const cibleY = souris.y < -999 ? 0 : souris.y - hauteur / 2;
+      souris.px += (cibleX - souris.px) * 0.03;
+      souris.py += (cibleY - souris.py) * 0.03;
+
+      ctx.clearRect(0, 0, largeur, hauteur);
+
+      for (const g of grains) {
+        g.x += g.vx + Math.sin(temps * 0.005 + g.phase) * 0.07 * g.profondeur;
+        g.y += g.vy - elan * 0.12 * g.profondeur;
+
+        // Les grains s'écartent doucement du curseur
+        const dx = g.x - souris.x;
+        const dy = g.y - souris.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < 130 && d > 0.01) {
+          const force = (1 - d / 130) * 0.9 * (0.3 + g.profondeur);
+          g.x += (dx / d) * force;
+          g.y += (dy / d) * force;
+        }
+
+        if (g.y < -12) {
+          g.y = hauteur + 12;
+          g.x = Math.random() * largeur;
+        } else if (g.y > hauteur + 12) g.y = -12;
+        if (g.x < -12) g.x = largeur + 12;
+        else if (g.x > largeur + 12) g.x = -12;
+
+        const x = g.x - souris.px * 0.025 * g.profondeur;
+        const y = g.y - souris.py * 0.025 * g.profondeur;
+        const scintille = 0.55 + 0.45 * Math.sin(temps * 0.012 + g.phase * 3);
+
+        // Halo autour des grains les plus proches
+        if (g.profondeur > 0.75) {
+          ctx.globalAlpha = g.alpha * scintille * 0.12;
+          ctx.fillStyle = '#ecd9a8';
+          ctx.beginPath();
+          ctx.arc(x, y, g.r * 4.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.globalAlpha = g.alpha * scintille;
+        ctx.fillStyle = g.profondeur > 0.9 ? '#f6e7c1' : '#d9bd85';
+        ctx.beginPath();
+        ctx.arc(x, y, g.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      anim = requestAnimationFrame(dessiner);
+    };
+
+    anim = requestAnimationFrame(dessiner);
+
+    // Pause quand l'onglet n'est pas visible
+    document.addEventListener('visibilitychange', () => {
+      cancelAnimationFrame(anim);
+      if (!document.hidden) anim = requestAnimationFrame(dessiner);
+    });
+  }
+
+  /* ——— Curseur doux ——— */
+  const souris = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const curseur = document.querySelector<HTMLElement>('.curseur');
+  const anneau = document.querySelector<HTMLElement>('.curseur-anneau');
+  const point = document.querySelector<HTMLElement>('.curseur-point');
+  const texte = document.querySelector<HTMLElement>('.curseur-texte');
+
+  if (souris && !reduit && curseur && anneau && point && texte) {
+    document.documentElement.classList.add('curseur-actif');
+
+    let x = -100;
+    let y = -100;
+    let ax = x;
+    let ay = y;
+    let visible = false;
+
+    window.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      x = e.clientX;
+      y = e.clientY;
+      if (!visible) {
+        visible = true;
+        ax = x;
+        ay = y;
+        curseur.classList.add('visible');
+      }
+    });
+
+    document.documentElement.addEventListener('pointerleave', () => {
+      visible = false;
+      curseur.classList.remove('visible');
+    });
+
+    // Au survol d'un lien ou d'un bouton, l'anneau s'ouvre ;
+    // un élément [data-curseur="…"] affiche un mot dans l'anneau.
+    document.addEventListener('pointerover', (e) => {
+      const cible = (e.target as HTMLElement).closest<HTMLElement>(
+        'a, button, [role="tab"], [data-curseur], label, summary',
+      );
+      const mot = cible?.closest<HTMLElement>('[data-curseur]')?.dataset.curseur;
+      const surLien = !!cible && !cible.matches('[data-curseur]');
+      curseur.classList.toggle('survol', surLien);
+      curseur.classList.toggle('mot', !!mot && !surLien);
+      texte.textContent = mot && !surLien ? mot : '';
+    });
+
+    window.addEventListener('pointerdown', () => curseur.classList.add('appui'));
+    window.addEventListener('pointerup', () => curseur.classList.remove('appui'));
+
+    const suivre = () => {
+      ax += (x - ax) * 0.16;
+      ay += (y - ay) * 0.16;
+      point.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      anneau.style.transform = `translate3d(${ax}px, ${ay}px, 0)`;
+      requestAnimationFrame(suivre);
+    };
+    requestAnimationFrame(suivre);
+  }
+</script>
+
+<style>
+  /* ——— Fond animé ——— */
+  .ambiance {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .poussiere {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .halo {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    will-change: transform;
+  }
+
+  .halo-or {
+    width: 60vmax;
+    height: 60vmax;
+    left: -15vmax;
+    top: -20vmax;
+    background: radial-gradient(circle, rgba(201, 150, 80, 0.2), transparent 65%);
+  }
+
+  .halo-braise {
+    width: 55vmax;
+    height: 55vmax;
+    right: -20vmax;
+    bottom: -25vmax;
+    background: radial-gradient(circle, rgba(150, 60, 40, 0.16), transparent 65%);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .halo-or {
+      animation: deriver-or 38s ease-in-out infinite alternate;
+    }
+
+    .halo-braise {
+      animation: deriver-braise 46s ease-in-out infinite alternate;
+    }
+
+    @keyframes deriver-or {
+      50% {
+        transform: translate(35vw, 25vh) scale(1.15);
+      }
+      100% {
+        transform: translate(15vw, 55vh) scale(0.9);
+      }
+    }
+
+    @keyframes deriver-braise {
+      50% {
+        transform: translate(-30vw, -30vh) scale(1.2);
+      }
+      100% {
+        transform: translate(-55vw, -10vh) scale(0.95);
+      }
+    }
+  }
+
+  /* ——— Curseur ——— */
+  .curseur {
+    display: none;
+  }
+
+  :global(html.curseur-actif) .curseur {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 300ms ease;
+  }
+
+  :global(html.curseur-actif) .curseur.visible {
+    opacity: 1;
+  }
+
+  :global(html.curseur-actif),
+  :global(html.curseur-actif *) {
+    cursor: none !important;
+  }
+
+  .curseur-point,
+  .curseur-anneau {
+    position: absolute;
+    top: 0;
+    left: 0;
+    will-change: transform;
+  }
+
+  .curseur-point::before {
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    margin: -3px 0 0 -3px;
+    border-radius: 50%;
+    background: var(--or-clair);
+    box-shadow: 0 0 10px rgba(236, 217, 168, 0.6);
+    transition: transform 250ms ease;
+  }
+
+  .curseur-anneau::before {
+    content: '';
+    position: absolute;
+    width: 2.25rem;
+    height: 2.25rem;
+    margin: -1.125rem 0 0 -1.125rem;
+    border-radius: 50%;
+    border: 1px solid rgba(236, 217, 168, 0.55);
+    transition:
+      transform 350ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      background-color 300ms ease,
+      border-color 300ms ease;
+  }
+
+  .curseur-texte {
+    position: absolute;
+    left: 0;
+    top: 0;
+    translate: -50% -50%;
+    font-family: var(--f-texte);
+    font-size: 0.6rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--fond);
+    opacity: 0;
+    transition: opacity 250ms ease;
+  }
+
+  /* Survol d'un lien : l'anneau s'ouvre et se teinte */
+  .curseur.survol .curseur-anneau::before {
+    transform: scale(1.7);
+    background: rgba(236, 217, 168, 0.08);
+    border-color: var(--or);
+  }
+
+  .curseur.survol .curseur-point::before {
+    transform: scale(0.5);
+  }
+
+  /* Mot dans l'anneau (ex. « Glisser » sur le carrousel) */
+  .curseur.mot .curseur-anneau::before {
+    transform: scale(2.6);
+    background: rgba(236, 217, 168, 0.92);
+    border-color: transparent;
+  }
+
+  .curseur.mot .curseur-texte {
+    opacity: 1;
+  }
+
+  .curseur.mot .curseur-point::before {
+    transform: scale(0);
+  }
+
+  .curseur.appui .curseur-anneau::before {
+    transform: scale(0.8);
+  }
+
+  .curseur.survol.appui .curseur-anneau::before {
+    transform: scale(1.4);
+  }
+</style>

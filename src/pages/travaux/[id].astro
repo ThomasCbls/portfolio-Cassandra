@@ -1,0 +1,237 @@
+---
+import { getCollection, render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+
+export async function getStaticPaths() {
+  const travaux = await getCollection('travaux');
+  return travaux.map((travail) => ({ params: { id: travail.id }, props: { travail } }));
+}
+
+const { travail } = Astro.props;
+const { Content } = await render(travail);
+const d = travail.data;
+---
+
+<Base titre={d.titre} description={d.resume}>
+  <div class="ecran fiche-ecran">
+    <div class="contenu">
+    <a class="retour" href="/#travaux"><span aria-hidden="true">←</span> Tous les travaux</a>
+
+    <article class="fiche" data-reveal>
+      <header>
+        <p class="surtitre">{d.nature}</p>
+        <p class="periode">{d.debut}–{d.fin}</p>
+        <h1>{d.titre}</h1>
+        {d.sousTitre && <p class="sous-titre">{d.sousTitre}</p>}
+        <div class="filet"></div>
+      </header>
+
+      <div class="corps">
+        <div class="texte">
+          <p class="resume">{d.resume}</p>
+          <div class="prose">
+            <Content />
+          </div>
+          {
+            d.pdf && (
+              <p class="pdf">
+                <a class="bouton bouton-plein" href={d.pdf}>
+                  Lire le document complet (PDF)
+                </a>
+              </p>
+            )
+          }
+        </div>
+
+        <aside class="notice" aria-label="Notice">
+          <p class="surtitre">Notice</p>
+          <dl>
+            <div>
+              <dt>Nature</dt>
+              <dd>
+                {d.nature}
+                {d.enCours && <span class="badge">en cours</span>}
+              </dd>
+            </div>
+            <div>
+              <dt>Année</dt>
+              <dd>{d.annee}</dd>
+            </div>
+            <div>
+              <dt>Période étudiée</dt>
+              <dd>
+                {d.debut}–{d.fin}
+              </dd>
+            </div>
+            {
+              d.direction && (
+                <div>
+                  <dt>Direction</dt>
+                  <dd>{d.direction}</dd>
+                </div>
+              )
+            }
+            {
+              d.sources.length > 0 && (
+                <div>
+                  <dt>Sources principales</dt>
+                  <dd>
+                    <ul>
+                      {d.sources.map((s) => (
+                        <li>
+                          <span class="cote">{s.cote}</span>
+                          <span>{s.fonds}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </dd>
+                </div>
+              )
+            }
+          </dl>
+        </aside>
+      </div>
+    </article>
+    </div>
+  </div>
+</Base>
+
+<style>
+  .fiche-ecran {
+    justify-content: flex-start;
+  }
+
+  .retour {
+    display: inline-block;
+    margin: 0.5rem 0 1.25rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gris-or);
+    text-decoration: none;
+  }
+
+  .retour:hover {
+    color: var(--or-clair);
+  }
+
+  .periode {
+    margin-top: 1.25rem;
+    font-family: var(--f-titre);
+    font-size: var(--t-2);
+    color: var(--or);
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1 {
+    font-size: clamp(2.5rem, 7vw, 5rem);
+    line-height: 1;
+    max-width: 18ch;
+  }
+
+  .sous-titre {
+    margin-top: 0.75rem;
+    max-width: var(--mesure);
+    font-family: var(--f-titre);
+    font-style: italic;
+    font-size: clamp(1.3rem, 3vw, var(--t-2));
+    line-height: 1.25;
+    color: var(--or-clair);
+  }
+
+  header .filet {
+    max-width: 26rem;
+    margin-top: 2rem;
+  }
+
+  .corps {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    gap: 2.5rem clamp(2rem, 5vw, 4rem);
+    align-items: start;
+  }
+
+  .resume {
+    max-width: var(--mesure);
+    font-family: var(--f-titre);
+    font-size: 1.4rem;
+    line-height: 1.45;
+    color: var(--ivoire);
+    margin-bottom: 1.5rem;
+  }
+
+  .prose {
+    color: #ddd3bd;
+  }
+
+  .pdf {
+    margin-top: 2rem;
+  }
+
+  .notice {
+    padding: 1.5rem;
+    background: var(--encart);
+    border: 1px solid var(--filet-pale);
+  }
+
+  dl {
+    margin: 1rem 0 0;
+  }
+
+  dl div {
+    padding: 0.7rem 0;
+    border-top: 1px solid var(--filet-pale);
+  }
+
+  dt {
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gris-or);
+  }
+
+  dd {
+    margin: 0.2rem 0 0;
+  }
+
+  dd ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  dd li {
+    display: flex;
+    flex-direction: column;
+  }
+
+  dd li + li {
+    margin-top: 0.5rem;
+  }
+
+  .cote {
+    color: var(--or-clair);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .badge {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0 0.45rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    border: 1px solid rgba(224, 122, 95, 0.6);
+    color: var(--braise-clair);
+  }
+
+  @media (max-width: 52rem) {
+    .corps {
+      grid-template-columns: 1fr;
+    }
+
+    .notice {
+      order: -1;
+    }
+  }
+</style>

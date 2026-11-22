@@ -1,0 +1,977 @@
+---
+// Frise chronologique à deux vues :
+//  - « Siècles étudiés » : chaque travail placé sur la période historique qu'il étudie ;
+//  - « Mon parcours » : formation et expériences, sur l'échelle des années.
+// Au survol, la période se projette sur toute la hauteur de la frise.
+interface Travail {
+  id: string;
+  titre: string;
+  nature?: string;
+  debut: number;
+  fin: number;
+  enCours: boolean;
+}
+
+interface Etape {
+  dates: string;
+  titre: string;
+  lieu: string;
+}
+
+interface Props {
+  travaux: Travail[];
+  parcours: Etape[];
+}
+
+const { travaux, parcours } = Astro.props;
+
+const romain = (n: number) => {
+  const table: [number, string][] = [
+    [10, 'X'],
+    [9, 'IX'],
+    [5, 'V'],
+    [4, 'IV'],
+    [1, 'I'],
+  ];
+  let s = '';
+  for (const [v, c] of table)
+    while (n >= v) {
+      s += c;
+      n -= v;
+    }
+  return s;
+};
+
+interface LigneBrute {
+  titre: string;
+  dates: string;
+  meta: string[];
+  debut: number;
+  fin: number;
+  libelleDebut: string;
+  libelleFin: string;
+  enCours: boolean;
+  bref?: boolean;
+  href?: string;
+}
+
+interface Vue {
+  id: string;
+  onglet: string;
+  etendue: string;
+  graduations: { gauche: number; libelle: string; mineure: boolean }[];
+  traits: number[];
+  bandes: { nom: string; gauche: number; largeur: number }[];
+  lignes: (LigneBrute & { gauche: number; largeur: number; bref: boolean; aDroite: boolean })[];
+  legende: { texte: string; enCours?: boolean }[];
+}
+
+const placer = (lignes: LigneBrute[], origine: number, terme: number) => {
+  const position = (a: number) => ((a - origine) / (terme - origine)) * 100;
+  return {
+    position,
+    lignes: [...lignes]
+      .sort((a, b) => a.debut - b.debut)
+      .map((l) => {
+        const gauche = position(l.debut);
+        const largeur = position(l.fin) - gauche;
+        // Période très courte : un seul jalon plutôt que deux points collés
+        const bref = l.bref ?? l.fin - l.debut <= (terme - origine) * 0.03;
+        // Les étiquettes situées à droite s'alignent sur la fin de la barre
+        return { ...l, gauche, largeur, bref, aDroite: gauche + largeur / 2 > 55 };
+      }),
+  };
+};
+
+const vues: Vue[] = [];
+
+// Vue 1 : siècles étudiés
+{
+  const pas = 50;
+  const min = Math.min(...travaux.map((e) => e.debut));
+  const max = Math.max(...travaux.map((e) => e.fin));
+  const origine = Math.floor((min - 10) / pas) * pas;
+  const terme = Math.ceil((max + 10) / pas) * pas;
+  const { position, lignes } = placer(
+    travaux.map((t) => ({
+      titre: t.titre,
+      dates: `${t.debut}–${t.fin}`,
+      meta: t.nature ? [t.nature] : [],
+      debut: t.debut,
+      fin: t.fin,
+      libelleDebut: String(t.debut),
+      libelleFin: String(t.fin),
+      enCours: t.enCours,
+      href: `/travaux/${t.id}/`,
+    })),
+    origine,
+    terme,
+  );
+
+  const graduations = [];
+  for (let a = origine; a <= terme; a += pas)
+    graduations.push({ gauche: position(a), libelle: String(a), mineure: a % 100 !== 0 });
+
+  const traits = [];
+  for (let a = origine; a <= terme; a += 10) if (a % pas !== 0) traits.push(position(a));
+
+  const bandes = [];
+  for (let s = Math.floor(origine / 100); s * 100 < terme; s++) {
+    const g = Math.max(origine, s * 100);
+    const d = Math.min(terme, s * 100 + 100);
+    bandes.push({ nom: romain(s + 1), gauche: position(g), largeur: position(d) - position(g) });
+  }
+
+  vues.push({
+    id: 'siecles',
+    onglet: 'Siècles étudiés',
+    etendue: `${min} – ${max}`,
+    graduations,
+    traits,
+    bandes,
+    lignes,
+    legende: [
+      { texte: 'Période étudiée par chaque travail' },
+      ...(travaux.some((t) => t.enCours) ? [{ texte: 'Mémoire en cours', enCours: true }] : []),
+    ],
+  });
+}
+
+// Vue 2 : parcours (années universitaires : de septembre à juin)
+{
+  const anneeCourante = new Date().getFullYear();
+  const brutes: LigneBrute[] = parcours.map((p) => {
+    const annees = (p.dates.match(/\d{4}/g) ?? []).map(Number);
+    const a = annees[0];
+    const b = annees[annees.length - 1];
+    const ponctuel = annees.length === 1;
+    return {
+      titre: p.titre,
+      dates: p.dates,
+      meta: [p.lieu],
+      debut: ponctuel ? a + 0.4 : a + 0.7,
+      fin: ponctuel ? a + 0.6 : b + 0.5,
+      libelleDebut: String(a),
+      libelleFin: String(b),
+      enCours: !ponctuel && b >= anneeCourante,
+      bref: ponctuel,
+    };
+  });
+  const toutes = parcours.flatMap((p) => (p.dates.match(/\d{4}/g) ?? []).map(Number));
+  const origine = Math.min(...toutes);
+  const terme = Math.max(...toutes) + 1;
+  const { position, lignes } = placer(brutes, origine, terme);
+
+  const graduations = [];
+  for (let a = origine; a <= terme; a++) graduations.push({ gauche: position(a), libelle: String(a), mineure: false });
+
+  const traits = [];
+  for (let a = origine; a < terme; a += 0.25) if (a % 1 !== 0) traits.push(position(a));
+
+  // Une bande par année civile, en alternance
+  const bandes = [];
+  for (let a = origine; a < terme; a++) bandes.push({ nom: '', gauche: position(a), largeur: position(a + 1) - position(a) });
+
+  vues.push({
+    id: 'parcours',
+    onglet: 'Mon parcours',
+    etendue: `${origine} – ${terme - 1}`,
+    graduations,
+    traits,
+    bandes,
+    lignes,
+    legende: [
+      { texte: 'Formation et expériences' },
+      ...(brutes.some((l) => l.enCours) ? [{ texte: 'En cours', enCours: true }] : []),
+    ],
+  });
+}
+---
+
+<figure class="frise" aria-labelledby="titre-frise" data-reveal>
+  <span id="parcours" class="ancre" aria-hidden="true"></span>
+  <div class="entete">
+    <div>
+      <p class="surtitre">Recherches et formation</p>
+      <h2 id="titre-frise" class="titre-section">Chronologie</h2>
+    </div>
+    <div class="onglets" role="tablist" aria-label="Choisir la frise">
+      {
+        vues.map((v, i) => (
+          <button
+            type="button"
+            role="tab"
+            class="onglet"
+            id={`onglet-${v.id}`}
+            aria-controls={`vue-${v.id}`}
+            aria-selected={i === 0 ? 'true' : 'false'}
+            tabindex={i === 0 ? 0 : -1}
+          >
+            <span class="onglet-nom">{v.onglet}</span>
+            <span class="onglet-etendue">{v.etendue}</span>
+          </button>
+        ))
+      }
+    </div>
+  </div>
+
+  {
+    vues.map((v, i) => (
+      <div
+        class="vue"
+        id={`vue-${v.id}`}
+        role="tabpanel"
+        aria-labelledby={`onglet-${v.id}`}
+        data-vue={v.id}
+        hidden={i !== 0}
+      >
+        <div class="trace">
+          <div class="bandes" aria-hidden="true">
+            {v.bandes.map((b) => (
+              <span class="bande" style={`left: ${b.gauche}%; width: ${b.largeur}%`}>
+                {b.nom && <span class="numero">{b.nom}</span>}
+              </span>
+            ))}
+          </div>
+
+          <div class="axe" aria-hidden="true">
+            <span class="axe-ligne" />
+            {v.traits.map((g) => (
+              <span class="trait" style={`left: ${g}%`} />
+            ))}
+            <div class="graduations">
+              {v.graduations.map((g) => (
+                <span class:list={['graduation', { mineure: g.mineure }]} style={`left: ${g.gauche}%`}>
+                  <span class="annee">{g.libelle}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <ol class="lignes">
+            {v.lignes.map((l, rang) => {
+              const Corps = l.href ? 'a' : 'div';
+              return (
+                <li
+                  class:list={['ligne', { 'a-droite': l.aDroite, 'en-cours': l.enCours, bref: l.bref }]}
+                  style={`--gauche: ${l.gauche}%; --largeur: ${l.largeur}%; --rang: ${rang}`}
+                >
+                  <Corps class="corps" href={l.href}>
+                    <span class="projection" aria-hidden="true" />
+                    <span class="repere repere-debut" aria-hidden="true">
+                      {l.libelleDebut}
+                    </span>
+                    {!l.bref && (
+                      <span class="repere repere-fin" aria-hidden="true">
+                        {l.libelleFin}
+                      </span>
+                    )}
+                    <span class="etiquette">
+                      <span class="nom">
+                        {l.titre}
+                        {l.href && (
+                          <span class="fleche" aria-hidden="true">
+                            →
+                          </span>
+                        )}
+                      </span>
+                      <span class="meta">
+                        <span class="dates">{l.dates}</span>
+                        {l.meta.map((m) => (
+                          <span class="info">{m}</span>
+                        ))}
+                        {l.enCours && <span class="statut">en cours</span>}
+                      </span>
+                    </span>
+                    <span class="barre" aria-hidden="true" />
+                  </Corps>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+
+        <p class="legende">
+          {v.legende.map((g) => (
+            <span class:list={['legende-item', { 'legende-en-cours': g.enCours }]}>
+              <span class="pastille" aria-hidden="true" />
+              {g.texte}
+            </span>
+          ))}
+        </p>
+      </div>
+    ))
+  }
+</figure>
+
+<script>
+  document.querySelectorAll<HTMLElement>('.frise').forEach((frise) => {
+    const onglets = [...frise.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const vues = [...frise.querySelectorAll<HTMLElement>('[role="tabpanel"]')];
+    const n = onglets.length;
+
+    const activer = (i: number, focus = false) => {
+      onglets.forEach((o, j) => {
+        o.setAttribute('aria-selected', String(i === j));
+        o.tabIndex = i === j ? 0 : -1;
+      });
+      vues.forEach((v, j) => (v.hidden = i !== j));
+      if (focus) onglets[i].focus();
+    };
+
+    onglets.forEach((o, i) => {
+      o.addEventListener('click', () => activer(i));
+      o.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        e.preventDefault();
+        e.stopPropagation();
+        activer((i + (e.key === 'ArrowRight' ? 1 : -1) + n) % n, true);
+      });
+    });
+
+    // Le lien « Parcours » du menu ouvre directement la vue parcours
+    const suivreAncre = () => {
+      if (location.hash !== '#parcours') return;
+      const i = vues.findIndex((v) => v.dataset.vue === 'parcours');
+      if (i >= 0) activer(i);
+    };
+    suivreAncre();
+    window.addEventListener('hashchange', suivreAncre);
+  });
+</script>
+
+<style>
+  .frise {
+    --fond: var(--carte);
+    --axe: 2.25rem;
+    position: relative;
+    margin: 0;
+  }
+
+  /* Cible du lien « Parcours » : laisse la place de l'en-tête fixe */
+  .ancre {
+    position: absolute;
+    top: -9rem;
+  }
+
+  /* En-tête : titre à gauche, onglets à droite */
+  .entete {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem 2rem;
+    padding-bottom: 1rem;
+  }
+
+  .entete::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--or) 0%, rgba(201, 169, 110, 0.35) 45%, transparent 100%);
+  }
+
+  .onglets {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.3rem;
+    border: 1px solid var(--filet);
+    border-radius: 999px;
+    background: rgba(13, 11, 8, 0.4);
+  }
+
+  .onglet {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.05rem;
+    padding: 0.45rem 1.25rem 0.5rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--gris-or);
+    font: inherit;
+    cursor: pointer;
+    transition:
+      background-color 300ms ease,
+      color 300ms ease;
+  }
+
+  .onglet-nom {
+    font-size: 0.68rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .onglet-etendue {
+    font-family: var(--f-titre);
+    font-style: italic;
+    font-size: 1.05rem;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .onglet:hover {
+    color: var(--ivoire);
+  }
+
+  .onglet[aria-selected='true'] {
+    background: linear-gradient(135deg, var(--or-clair), var(--or));
+    color: var(--fond);
+  }
+
+  /* Sans JavaScript, les deux vues s'affichent l'une sous l'autre */
+  :global(html:not(.js)) .vue[hidden] {
+    display: block;
+    margin-top: 3rem;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .vue:not([hidden]) {
+      animation: fondu 600ms ease both;
+    }
+
+    @keyframes fondu {
+      from {
+        opacity: 0;
+      }
+    }
+  }
+
+  /* Zone graphique */
+  .trace {
+    position: relative;
+    isolation: isolate;
+    margin-top: 1.75rem;
+    padding-top: var(--axe);
+  }
+
+  .bandes {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+  }
+
+  .bande {
+    position: absolute;
+    top: var(--axe);
+    bottom: 0;
+    overflow: hidden;
+    border-left: 1px solid rgba(201, 169, 110, 0.12);
+  }
+
+  .bande:nth-child(even) {
+    background: linear-gradient(180deg, rgba(236, 217, 168, 0.035), rgba(236, 217, 168, 0.01));
+  }
+
+  /* Numéro du siècle en filigrane, dans une bande réservée sous les lignes */
+  .numero {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0.35rem;
+    text-align: center;
+    font-family: var(--f-titre);
+    font-style: italic;
+    font-size: clamp(1.5rem, 5vw, 3.5rem);
+    line-height: 1;
+    color: rgba(201, 169, 110, 0.16);
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .axe-ligne {
+    position: absolute;
+    top: var(--axe);
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--or), rgba(201, 169, 110, 0.55));
+  }
+
+  .trait {
+    position: absolute;
+    top: calc(var(--axe) - 4px);
+    height: 4px;
+    width: 1px;
+    background: rgba(201, 169, 110, 0.4);
+  }
+
+  .graduations {
+    display: contents;
+  }
+
+  .graduation {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 0;
+  }
+
+  .graduation::before {
+    content: '';
+    position: absolute;
+    top: calc(var(--axe) - 8px);
+    height: 8px;
+    width: 1px;
+    background: var(--or);
+  }
+
+  .graduation::after {
+    content: '';
+    position: absolute;
+    top: var(--axe);
+    bottom: 0;
+    border-left: 1px dashed rgba(201, 169, 110, 0.09);
+  }
+
+  .annee {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translateX(-50%);
+    font-family: var(--f-titre);
+    font-size: 1.05rem;
+    line-height: 1.3;
+    color: var(--or-clair);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mineure .annee {
+    color: var(--gris-or);
+  }
+
+  .graduation:first-child .annee {
+    transform: none;
+  }
+
+  .graduation:last-child .annee {
+    transform: translateX(-100%);
+  }
+
+  /* Lignes */
+  .lignes {
+    list-style: none;
+    margin: 0;
+    padding: 1.4rem 0 clamp(3rem, 7vw, 5rem);
+  }
+
+  .vue[data-vue='parcours'] .lignes {
+    padding-bottom: 1.5rem;
+  }
+
+  .ligne {
+    padding: 0.55rem 0;
+    transition: opacity 300ms ease;
+  }
+
+  .corps {
+    display: block;
+    padding: 0.3rem 0;
+    color: inherit;
+    text-decoration: none;
+    border-radius: 2px;
+  }
+
+  a.corps:focus-visible {
+    outline: 1px solid var(--or);
+    outline-offset: 2px;
+  }
+
+  .etiquette {
+    display: block;
+    width: fit-content;
+    margin-left: var(--gauche);
+    max-width: calc(100% - var(--gauche));
+  }
+
+  .a-droite .etiquette {
+    margin-left: auto;
+    margin-right: calc(100% - var(--gauche) - var(--largeur));
+    max-width: calc(var(--gauche) + var(--largeur));
+    text-align: right;
+  }
+
+  .nom {
+    display: block;
+    font-family: var(--f-titre);
+    font-style: italic;
+    font-size: 1.45rem;
+    line-height: 1.15;
+    color: var(--ivoire);
+    transition: color 250ms ease;
+  }
+
+  .fleche {
+    display: inline-block;
+    margin-left: 0.35rem;
+    font-style: normal;
+    font-family: var(--f-texte);
+    font-size: 0.9em;
+    color: var(--or);
+    opacity: 0;
+    transform: translateX(-0.4rem);
+    transition:
+      opacity 250ms ease,
+      transform 250ms ease;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.6rem;
+    margin-top: 0.3rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gris-or);
+  }
+
+  .a-droite .meta {
+    justify-content: flex-end;
+  }
+
+  .dates {
+    color: var(--or);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.08em;
+  }
+
+  .info::before,
+  .statut::before {
+    content: '·';
+    margin-right: 0.6rem;
+    color: rgba(201, 169, 110, 0.5);
+  }
+
+  .statut {
+    color: var(--braise);
+  }
+
+  /* La barre : filet doré avec deux jalons aux extrémités */
+  .barre {
+    position: relative;
+    display: block;
+    height: 4px;
+    margin-top: 0.7rem;
+    margin-left: var(--gauche);
+    width: var(--largeur);
+    min-width: 4px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--or-sombre), var(--or-clair) 50%, var(--or));
+    transition: box-shadow 300ms ease;
+  }
+
+  .barre::before,
+  .barre::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--fond);
+    border: 1.5px solid var(--or-clair);
+    transform: translate(-50%, -50%);
+    transition:
+      background-color 300ms ease,
+      transform 300ms ease;
+  }
+
+  .barre::after {
+    left: 100%;
+  }
+
+  .bref .barre {
+    width: 0;
+    min-width: 0;
+    margin-left: calc(var(--gauche) + var(--largeur) / 2);
+  }
+
+  .bref .barre::before {
+    width: 13px;
+    height: 13px;
+  }
+
+  .bref .barre::after {
+    display: none;
+  }
+
+  .en-cours .barre {
+    background: linear-gradient(90deg, var(--braise-sombre), var(--braise-clair), var(--braise), var(--braise-sombre));
+    background-size: 300% 100%;
+  }
+
+  .en-cours .barre::before,
+  .en-cours .barre::after {
+    border-color: var(--braise-clair);
+  }
+
+  /* Projection de la période sur toute la hauteur de la frise */
+  .projection {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--gauche);
+    width: var(--largeur);
+    min-width: 2px;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(180deg, rgba(236, 217, 168, 0.16), rgba(236, 217, 168, 0.05) 45%, rgba(236, 217, 168, 0.02));
+    border-inline: 1px solid rgba(236, 217, 168, 0.45);
+    transition: opacity 300ms ease;
+  }
+
+  .en-cours .projection {
+    background: linear-gradient(180deg, rgba(244, 179, 156, 0.16), rgba(244, 179, 156, 0.05) 45%, rgba(244, 179, 156, 0.02));
+    border-color: rgba(244, 179, 156, 0.45);
+  }
+
+  /* Années de début et de fin affichées sur l'axe au survol */
+  .repere {
+    position: absolute;
+    top: 0;
+    z-index: 2;
+    padding: 0.05rem 0.4rem;
+    font-family: var(--f-titre);
+    font-size: 1.05rem;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+    background: var(--or-clair);
+    color: var(--fond);
+    border-radius: 2px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 250ms ease;
+  }
+
+  .repere-debut {
+    left: var(--gauche);
+    transform: translateX(-100%);
+  }
+
+  .bref .repere-debut {
+    left: calc(var(--gauche) + var(--largeur) / 2);
+    transform: translateX(-50%);
+  }
+
+  .repere-fin {
+    left: calc(var(--gauche) + var(--largeur));
+  }
+
+  .en-cours .repere {
+    background: var(--braise-clair);
+  }
+
+  /* États actifs */
+  .corps:is(:hover, :focus-visible) :is(.projection, .repere) {
+    opacity: 1;
+  }
+
+  .corps:is(:hover, :focus-visible) .nom {
+    color: var(--or-clair);
+  }
+
+  .en-cours .corps:is(:hover, :focus-visible) .nom {
+    color: var(--braise-clair);
+  }
+
+  .corps:is(:hover, :focus-visible) .fleche {
+    opacity: 1;
+    transform: none;
+  }
+
+  .corps:is(:hover, :focus-visible) .barre {
+    box-shadow: 0 0 18px 1px rgba(236, 217, 168, 0.4);
+  }
+
+  .en-cours .corps:is(:hover, :focus-visible) .barre {
+    box-shadow: 0 0 18px 1px rgba(244, 179, 156, 0.4);
+  }
+
+  .corps:is(:hover, :focus-visible) .barre::before,
+  .corps:is(:hover, :focus-visible) .barre::after {
+    background: var(--or-clair);
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+
+  .en-cours .corps:is(:hover, :focus-visible) .barre::before,
+  .en-cours .corps:is(:hover, :focus-visible) .barre::after {
+    background: var(--braise-clair);
+  }
+
+  .lignes:has(.corps:is(:hover, :focus-visible)) .ligne:not(:has(.corps:is(:hover, :focus-visible))) {
+    opacity: 0.35;
+  }
+
+  /* Légende */
+  .legende {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(201, 169, 110, 0.18);
+    font-size: 0.8125rem;
+    color: var(--gris-or);
+  }
+
+  .legende-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .pastille {
+    width: 1.75rem;
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--or-sombre), var(--or-clair), var(--or));
+  }
+
+  .legende-en-cours .pastille {
+    background: linear-gradient(90deg, var(--braise-sombre), var(--braise-clair), var(--braise));
+  }
+
+  /* Écrans peu hauts : frise resserrée pour tenir dans la fenêtre */
+  @media (max-height: 62rem) and (min-width: 40rem) {
+    .entete .titre-section {
+      font-size: clamp(2.5rem, 7vh, 3.5rem);
+    }
+
+    .trace {
+      margin-top: 1rem;
+    }
+
+    .lignes {
+      padding: 0.9rem 0 3.25rem;
+    }
+
+    .ligne {
+      padding: 0.3rem 0;
+    }
+
+    .barre {
+      margin-top: 0.5rem;
+    }
+  }
+
+  /* Petits écrans : les étiquettes reprennent toute la largeur */
+  @media (max-width: 40rem) {
+    .etiquette,
+    .a-droite .etiquette {
+      margin-left: 0;
+      margin-right: 0;
+      max-width: 100%;
+      text-align: left;
+    }
+
+    .a-droite .meta {
+      justify-content: flex-start;
+    }
+
+    /* Les points séparateurs se retrouveraient en début de ligne au retour à la ligne */
+    .meta {
+      column-gap: 0.9rem;
+    }
+
+    .info::before,
+    .statut::before {
+      display: none;
+    }
+
+    .graduation.mineure .annee {
+      display: none;
+    }
+
+    .vue[data-vue='parcours'] .graduation:nth-child(even):not(:last-child) .annee {
+      display: none;
+    }
+
+    .nom {
+      font-size: 1.25rem;
+    }
+
+    .repere {
+      font-size: 0.8125rem;
+    }
+
+    .onglets {
+      width: 100%;
+    }
+
+    .onglet {
+      flex: 1;
+      padding-inline: 0.5rem;
+    }
+  }
+
+  /* Animations : les barres se tracent à l'arrivée, une à une */
+  @media (prefers-reduced-motion: no-preference) {
+    .etiquette {
+      animation: apparaitre 700ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+      animation-delay: calc(200ms + var(--rang) * 130ms);
+    }
+
+    .barre {
+      animation: tracer 1000ms cubic-bezier(0.65, 0, 0.25, 1) backwards;
+      animation-delay: calc(350ms + var(--rang) * 130ms);
+    }
+
+    .en-cours .barre {
+      animation:
+        tracer 1000ms cubic-bezier(0.65, 0, 0.25, 1) backwards,
+        miroiter 4s linear infinite;
+      animation-delay: calc(350ms + var(--rang) * 130ms), 0s;
+    }
+
+    /* Les barres attendent que la frise soit à l'écran pour se tracer */
+    :global(.js) .frise:not(.revele) .etiquette,
+    :global(.js) .frise:not(.revele) .barre,
+    :global(.js) .frise:not(.revele) .barre::after {
+      animation-play-state: paused;
+    }
+
+    .en-cours .barre::after {
+      animation: pulser 2.4s ease-out infinite;
+    }
+
+    @keyframes apparaitre {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+    }
+
+    @keyframes tracer {
+      from {
+        clip-path: inset(-12px 100% -12px -12px);
+      }
+      to {
+        clip-path: inset(-12px -12px -12px -12px);
+      }
+    }
+
+    @keyframes miroiter {
+      to {
+        background-position: -300% 0;
+      }
+    }
+
+    @keyframes pulser {
+      0% {
+        box-shadow: 0 0 0 0 rgba(244, 179, 156, 0.55);
+      }
+      70%,
+      100% {
+        box-shadow: 0 0 0 9px rgba(244, 179, 156, 0);
+      }
+    }
+  }
+</style>

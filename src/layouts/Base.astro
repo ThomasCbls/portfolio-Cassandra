@@ -1,0 +1,175 @@
+---
+import '../styles/global.css';
+import { profil } from '../data/profil';
+import Ambiance from '../components/Ambiance.astro';
+
+interface Props {
+  titre?: string;
+  description?: string;
+}
+
+const { titre, description = profil.presentation } = Astro.props;
+const titrePage = titre ? `${titre}, ${profil.nom}` : `${profil.nom}, historienne`;
+const accueil = Astro.url.pathname === '/';
+---
+
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0d0b08" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Pinyon+Script&display=swap"
+    />
+    <title>{titrePage}</title>
+    <script is:inline>document.documentElement.classList.add('js');</script>
+  </head>
+  <body>
+    <Ambiance />
+    <a class="evitement" href="#contenu">Aller au contenu</a>
+    <header class="entete">
+      {
+        accueil ? (
+          <span class="signature">{profil.nom}</span>
+        ) : (
+          <a class="signature" href="/">
+            {profil.nom}
+          </a>
+        )
+      }
+      <nav aria-label="Navigation principale">
+        <a href="/#parcours">Parcours</a>
+        <a href="/#travaux">Travaux</a>
+        <a href="/#competences">Compétences</a>
+        <a href="/#contact">Contact</a>
+      </nav>
+    </header>
+    <main id="contenu">
+      <slot />
+    </main>
+    {
+      !accueil && (
+        <footer class="page pied">
+          <span class="losange" aria-hidden="true" />
+          <p>
+            {profil.nom} · {new Date().getFullYear()}
+          </p>
+          <span class="losange" aria-hidden="true" />
+        </footer>
+      )
+    }
+    <script>
+      // Apparition au défilement : chaque élément [data-reveal] reçoit .revele en entrant dans l'écran
+      const elements = document.querySelectorAll<HTMLElement>('[data-reveal]');
+      const reveler = (el: Element) => el.classList.add('revele');
+
+      if (!('IntersectionObserver' in window)) {
+        elements.forEach(reveler);
+      } else {
+        const observateur = new IntersectionObserver(
+          (entrees) => {
+            for (const entree of entrees) {
+              if (entree.isIntersecting) {
+                reveler(entree.target);
+                observateur.unobserve(entree.target);
+              }
+            }
+          },
+          { threshold: 0, rootMargin: '0px 0px -8% 0px' },
+        );
+        elements.forEach((el) => observateur.observe(el));
+      }
+    </script>
+  </body>
+</html>
+
+<style>
+  /* En-tête fixe, posé sur les écrans plein cadre */
+  .entete {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem 2rem;
+    padding: clamp(1.4rem, 3.5vh, 2.1rem) calc(var(--gouttiere) + clamp(0.5rem, 1.2vw, 0.9rem) + 0.5rem);
+    background: linear-gradient(180deg, rgba(13, 11, 8, 0.85) 0%, rgba(13, 11, 8, 0.45) 60%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .entete > * {
+    pointer-events: auto;
+  }
+
+  .signature {
+    font-family: var(--f-script);
+    font-size: 1.9rem;
+    line-height: 1;
+    color: var(--or-clair);
+    text-decoration: none;
+  }
+
+  nav {
+    display: flex;
+    gap: clamp(1rem, 3vw, 2.25rem);
+  }
+
+  nav a {
+    font-size: 0.75rem;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--gris-or);
+    text-decoration: none;
+    padding: 0.35rem 0;
+    background: linear-gradient(var(--or), var(--or)) bottom center / 0 1px no-repeat;
+    transition:
+      color 250ms ease,
+      background-size 250ms ease;
+  }
+
+  nav a:hover {
+    color: var(--or-clair);
+    background-size: 100% 1px;
+  }
+
+  @media (max-width: 30rem) {
+    nav {
+      gap: 0.75rem;
+    }
+
+    nav a {
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+    }
+  }
+
+  .pied {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding-top: 3.5rem;
+    padding-bottom: 3rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--gris-or);
+  }
+
+  .losange {
+    width: 5px;
+    height: 5px;
+    background: var(--or);
+    transform: rotate(45deg);
+  }
+</style>
