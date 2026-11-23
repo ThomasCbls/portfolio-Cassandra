@@ -29,7 +29,28 @@ const travaux = defineCollection({
     // Sans image : gravure par défaut (livre, plume et encrier), en attendant les vraies photos.
     gravure: z.string().default('/gravures/defaut.svg'),
     credit: z.string().optional(),
+    // Commune où le travail a eu lieu : le place sur la carte (doit exister dans `communes`, src/data/profil.ts)
+    commune: z.string().optional(),
+    // Notes manuscrites affichées dans la marge de la fiche, comme des annotations au crayon
+    annotations: z.array(z.string()).default([]),
   }),
 });
 
-export const collections = { travaux };
+// Version anglaise des travaux : un fichier du même nom dans src/content/travaux-en.
+// Seuls les textes sont à traduire ; tout le reste (ordre, image, dates…) vient du fichier français.
+// Sans fichier anglais, la page anglaise affiche le texte français.
+const travauxEn = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/travaux-en' }),
+  schema: z.object({
+    titre: z.string(),
+    sousTitre: z.string().optional(),
+    nature: z.string().optional(),
+    annee: z.union([z.number(), z.string()]).optional(),
+    direction: z.string().optional(),
+    resume: z.string(),
+    credit: z.string().optional(),
+    annotations: z.array(z.string()).optional(),
+  }),
+});
+
+export const collections = { travaux, travauxEn };

@@ -4,6 +4,8 @@ sousTitre: Photographie, RTI et initiation à la photogrammétrie
 nature: Projet numérique
 ordre: 5
 resume: "Numérisation et valorisation d'objets patrimoniaux : photographie, imagerie RTI et initiation à la photogrammétrie, pour garder une trace fidèle des objets et mieux les montrer."
+annotations:
+  - "RTI : faire tourner la lumière"
 ---
 
 ## Le projet

@@ -4,6 +4,8 @@ sousTitre: Bases de données SQL, cartographie QGIS et encodage XML/TEI
 nature: Projets numériques
 ordre: 6
 resume: "Création de bases de données et de requêtes SQL, cartographie et analyse spatiale avec QGIS, encodage XML/TEI de documents patrimoniaux : les outils des humanités numériques appliqués aux sources."
+annotations:
+  - "SQL · SIG · TEI"
 ---
 
 ## Le projet

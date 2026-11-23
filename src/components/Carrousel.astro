@@ -1,13 +1,17 @@
 ---
 // Carrousel plein écran des travaux : une diapositive par travail.
 // Sans JavaScript, les diapositives s'affichent simplement les unes sous les autres.
-import type { CollectionEntry } from 'astro:content';
+import type { Travail } from '../data/travaux';
+import { lien, t, type Langue } from '../i18n';
 
 interface Props {
-  travaux: CollectionEntry<'travaux'>[];
+  travaux: Travail[];
+  lang: Langue;
 }
 
-const { travaux } = Astro.props;
+const { travaux, lang } = Astro.props;
+const tx = t(lang).carrousel;
+const chapitre = t(lang).chapitre;
 const total = travaux.length;
 const deux = (n: number) => String(n).padStart(2, '0');
 
@@ -31,21 +35,29 @@ const romain = (n: number) => {
 const siecles = (debut: number, fin: number) => {
   const a = Math.floor(debut / 100) + 1;
   const b = Math.floor(fin / 100) + 1;
-  return a === b ? [romain(a)] : [romain(a), romain(b)];
+  return a === b ? [a] : [a, b];
+};
+
+// Anglais : « 2nd century », « 2nd – 3rd centuries »
+const ordinal = (n: number) => {
+  const r = n % 100;
+  const suffixe = r >= 11 && r <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th';
+  return `${n}${suffixe ?? 'th'}`;
 };
 ---
 
 <section
   id="travaux"
   class="ecran carrousel"
-  aria-roledescription="carrousel"
+  aria-roledescription={tx.role}
   aria-labelledby="titre-travaux"
   style={`--total: ${total}`}
+  data-annonce={tx.annonce}
 >
   <div class="contenu carrousel-entete" data-reveal>
     <div>
-      <p class="surtitre"><span class="chapitre">Chapitre III</span> Projets et expériences</p>
-      <h2 id="titre-travaux" class="titre-section">Travaux</h2>
+      <p class="surtitre"><span class="chapitre">{chapitre} III</span> {tx.surtitre}</p>
+      <h2 id="titre-travaux" class="titre-section">{tx.titre}</h2>
     </div>
     <p class="compteur" aria-hidden="true">
       <span class="compteur-actuel">01</span>
@@ -54,7 +66,7 @@ const siecles = (debut: number, fin: number) => {
     </p>
   </div>
 
-  <div class="diapos" data-reveal data-curseur="Glisser">
+  <div class="diapos" data-reveal data-curseur={tx.glisser}>
     {
       travaux.map((t, i) => {
         const d = t.data;
@@ -65,8 +77,8 @@ const siecles = (debut: number, fin: number) => {
           <article
             class:list={['diapo', { active: i === 0, 'en-cours': d.enCours, illustree: !!d.gravure }]}
             role="group"
-            aria-roledescription="diapositive"
-            aria-label={`${i + 1} sur ${total} : ${d.titre}`}
+            aria-roledescription={tx.diapositive}
+            aria-label={tx.position(i + 1, total, d.titre)}
           >
             {d.gravure && <span class="diapo-fond" aria-hidden="true" style={`background-image: url('${d.gravure}')`} />}
             <span class="filigrane" aria-hidden="true">
@@ -82,10 +94,10 @@ const siecles = (debut: number, fin: number) => {
                     <span>{d.annee}</span>
                   </>
                 )}
-                {d.enCours && <span class="badge">en cours</span>}
+                {d.enCours && <span class="badge">{tx.enCours}</span>}
               </p>
               <h3 class="diapo-titre anime" style="--i: 1">
-                <a href={`/travaux/${t.id}/`}>{d.titre}</a>
+                <a href={lien(lang, `/travaux/${t.id}/`)}>{d.titre}</a>
               </h3>
               {d.sousTitre && (
                 <p class="diapo-sous-titre anime" style="--i: 2">
@@ -96,7 +108,7 @@ const siecles = (debut: number, fin: number) => {
                 {d.resume}
               </p>
               {d.sources.length > 0 && (
-                <ul class="diapo-sources anime" style="--i: 4" aria-label="Sources principales">
+                <ul class="diapo-sources anime" style="--i: 4" aria-label={tx.sources}>
                   {d.sources.map((src) => (
                     <li>
                       <span class="cote">{src.cote}</span>
@@ -106,8 +118,8 @@ const siecles = (debut: number, fin: number) => {
                 </ul>
               )}
               <p class="anime" style="--i: 5">
-                <a class="bouton bouton-plein" href={`/travaux/${t.id}/`}>
-                  Lire la fiche <span aria-hidden="true">→</span>
+                <a class="bouton bouton-plein" href={lien(lang, `/travaux/${t.id}/`)}>
+                  {tx.lire} <span aria-hidden="true">→</span>
                 </a>
               </p>
             </div>
@@ -115,12 +127,12 @@ const siecles = (debut: number, fin: number) => {
             <div class="diapo-medaillon" aria-hidden="true">
               {
                 d.gravure ? (
-                  <div class="ovale ovale-gravure">
+                  <div class="ovale ovale-gravure objet-sombre" data-loupe data-curseur="">
                     <img src={d.gravure} alt="" loading={i === 0 ? 'eager' : 'lazy'} decoding="async" />
                     <span class="ovale-pastille">{deux(i + 1)}</span>
                   </div>
                 ) : (
-                  <div class="ovale">
+                  <div class="ovale objet-sombre">
                     <span class="ovale-numero">{deux(i + 1)}</span>
                     {d.debut !== undefined && d.fin !== undefined ? (
                       <span class="ovale-periode">
@@ -131,13 +143,18 @@ const siecles = (debut: number, fin: number) => {
                     ) : (
                       d.annee && <span class="ovale-periode">{d.annee}</span>
                     )}
-                    {s && (
+                    {s && lang === 'en' && (
                       <span class="ovale-siecle">
-                        {s[0]}
+                        {s.map(ordinal).join(' – ')} centur{s[1] ? 'ies' : 'y'}
+                      </span>
+                    )}
+                    {s && lang === 'fr' && (
+                      <span class="ovale-siecle">
+                        {romain(s[0])}
                         <sup>e</sup>
                         {s[1] && (
                           <>
-                            {' '}– {s[1]}
+                            {' '}– {romain(s[1])}
                             <sup>e</sup>
                           </>
                         )}{' '}
@@ -164,7 +181,7 @@ const siecles = (debut: number, fin: number) => {
               type="button"
               class="segment"
               data-cible={i}
-              aria-label={`Travail ${i + 1} : ${t.data.titre}`}
+              aria-label={tx.travail(i + 1, t.data.titre)}
               aria-current={i === 0 ? 'true' : undefined}
             >
               <span class="segment-num">{deux(i + 1)}</span>
@@ -178,10 +195,10 @@ const siecles = (debut: number, fin: number) => {
       }
     </ol>
     <div class="fleches">
-      <button type="button" class="fleche-btn precedent" aria-label="Travail précédent">
+      <button type="button" class="fleche-btn precedent" aria-label={tx.precedent}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
       </button>
-      <button type="button" class="fleche-btn suivant" aria-label="Travail suivant">
+      <button type="button" class="fleche-btn suivant" aria-label={tx.suivant}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
       </button>
     </div>
@@ -220,7 +237,10 @@ const siecles = (debut: number, fin: number) => {
       });
       if (compteur) compteur.textContent = String(actuelle + 1).padStart(2, '0');
       if (annonce && annoncer) {
-        annonce.textContent = `Travail ${actuelle + 1} sur ${n} : ${diapos[actuelle].querySelector('.diapo-titre')?.textContent?.trim()}`;
+        annonce.textContent = (carrousel.dataset.annonce ?? '{i} / {n} : {titre}')
+          .replace('{i}', String(actuelle + 1))
+          .replace('{n}', String(n))
+          .replace('{titre}', diapos[actuelle].querySelector('.diapo-titre')?.textContent?.trim() ?? '');
       }
     };
 
@@ -426,7 +446,7 @@ const siecles = (debut: number, fin: number) => {
     margin-top: 1.25rem;
     max-width: 38rem;
     font-size: 1.1rem;
-    color: #ddd3bd;
+    color: var(--texte-doux);
   }
 
   .diapo-sources {

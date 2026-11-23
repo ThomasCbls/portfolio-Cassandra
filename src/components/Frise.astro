@@ -3,6 +3,8 @@
 //  - « Siècles étudiés » : chaque travail placé sur la période historique qu'il étudie ;
 //  - « Mon parcours » : formation et expériences, sur l'échelle des années.
 // Au survol, la période se projette sur toute la hauteur de la frise.
+import { lien, t, type Langue } from '../i18n';
+
 interface Travail {
   id: string;
   titre: string;
@@ -14,6 +16,8 @@ interface Travail {
 
 interface Etape {
   dates: string;
+  /** Dates en français, pour le calcul (les dates affichées peuvent être traduites) */
+  datesSource?: string;
   titre: string;
   lieu: string;
   alternance?: boolean;
@@ -23,9 +27,12 @@ interface Etape {
 interface Props {
   travaux: Travail[];
   parcours: Etape[];
+  lang: Langue;
 }
 
-const { travaux, parcours } = Astro.props;
+const { travaux, parcours, lang } = Astro.props;
+const tx = t(lang).frise;
+const chapitre = t(lang).chapitre;
 
 const romain = (n: number) => {
   const table: [number, string][] = [
@@ -105,7 +112,7 @@ if (travaux.length >= 2) {
       libelleDebut: String(t.debut),
       libelleFin: String(t.fin),
       enCours: t.enCours,
-      href: `/travaux/${t.id}/`,
+      href: lien(lang, `/travaux/${t.id}/`),
     })),
     origine,
     terme,
@@ -127,15 +134,15 @@ if (travaux.length >= 2) {
 
   vues.push({
     id: 'siecles',
-    onglet: 'Siècles étudiés',
+    onglet: tx.siecles,
     etendue: `${min} – ${max}`,
     graduations,
     traits,
     bandes,
     lignes,
     legende: [
-      { texte: 'Période étudiée par chaque travail' },
-      ...(travaux.some((t) => t.enCours) ? [{ texte: 'Mémoire en cours', enCours: true }] : []),
+      { texte: tx.periodeEtudiee },
+      ...(travaux.some((t) => t.enCours) ? [{ texte: tx.memoireEnCours, enCours: true }] : []),
     ],
   });
 }
@@ -154,7 +161,7 @@ if (travaux.length >= 2) {
   const aujourdhui = maintenant.getFullYear() + maintenant.getMonth() / 12;
 
   const brutes: LigneBrute[] = parcours.map((p) => {
-    const morceaux = p.dates.split(/[–—-]/).map((t) => t.trim()).filter((t) => /\d{4}/.test(t));
+    const morceaux = (p.datesSource ?? p.dates).split(/[–—-]/).map((t) => t.trim()).filter((t) => /\d{4}/.test(t));
     const d = lireDate(morceaux[0]);
     const f = lireDate(morceaux[morceaux.length - 1]);
     const ponctuel = morceaux.length === 1 && d.mois === null;
@@ -175,7 +182,7 @@ if (travaux.length >= 2) {
       genre: p.alternance ? 'alternance' : p.stage ? 'stage' : undefined,
     };
   });
-  const toutes = parcours.flatMap((p) => (p.dates.match(/\d{4}/g) ?? []).map(Number));
+  const toutes = parcours.flatMap((p) => ((p.datesSource ?? p.dates).match(/\d{4}/g) ?? []).map(Number));
   const origine = Math.min(...toutes);
   const terme = Math.max(...toutes) + 1;
   const { position, lignes } = placer(brutes, origine, terme);
@@ -192,17 +199,17 @@ if (travaux.length >= 2) {
 
   vues.push({
     id: 'parcours',
-    onglet: 'Mon parcours',
+    onglet: tx.parcours,
     etendue: `${origine} – ${terme - 1}`,
     graduations,
     traits,
     bandes,
     lignes,
     legende: [
-      ...(brutes.some((l) => !l.genre) ? [{ texte: 'Études' }] : []),
-      ...(brutes.some((l) => l.genre === 'alternance') ? [{ texte: 'Alternance', genre: 'alternance' as const }] : []),
-      ...(brutes.some((l) => l.genre === 'stage') ? [{ texte: 'Stage', genre: 'stage' as const }] : []),
-      ...(brutes.some((l) => l.enCours) ? [{ texte: 'En cours', enCours: true }] : []),
+      ...(brutes.some((l) => !l.genre) ? [{ texte: tx.etudes }] : []),
+      ...(brutes.some((l) => l.genre === 'alternance') ? [{ texte: tx.alternance, genre: 'alternance' as const }] : []),
+      ...(brutes.some((l) => l.genre === 'stage') ? [{ texte: tx.stage, genre: 'stage' as const }] : []),
+      ...(brutes.some((l) => l.enCours) ? [{ texte: tx.enCours, enCours: true }] : []),
     ],
   });
 }
@@ -212,8 +219,8 @@ if (travaux.length >= 2) {
   <span id="parcours" class="ancre" aria-hidden="true"></span>
   <div class="entete">
     <div>
-      <p class="surtitre"><span class="chapitre">Chapitre II</span> Recherches et formation</p>
-      <h2 id="titre-frise" class="titre-section">Chronologie</h2>
+      <p class="surtitre"><span class="chapitre">{chapitre} II</span> {tx.surtitre}</p>
+      <h2 id="titre-frise" class="titre-section">{tx.titre}</h2>
     </div>
     {/* Onglets seulement s'il y a plusieurs vues ; sinon, l'étendue de la seule vue */}
     {vues.length === 1 && (
@@ -223,7 +230,7 @@ if (travaux.length >= 2) {
       </p>
     )}
     {vues.length > 1 && (
-    <div class="onglets" role="tablist" aria-label="Choisir la frise">
+    <div class="onglets" role="tablist" aria-label={tx.choisir}>
       {
         vues.map((v, i) => (
           <button
@@ -306,11 +313,11 @@ if (travaux.length >= 2) {
                       </span>
                       <span class="meta">
                         <span class="dates">{l.dates}</span>
-                        {l.genre && <span class="type">{l.genre === 'stage' ? 'Stage' : 'Alternance'}</span>}
+                        {l.genre && <span class="type">{l.genre === 'stage' ? tx.stage : tx.alternance}</span>}
                         {l.meta.map((m) => (
                           <span class="info">{m}</span>
                         ))}
-                        {l.enCours && <span class="statut">en cours</span>}
+                        {l.enCours && <span class="statut">{tx.statutEnCours}</span>}
                       </span>
                     </span>
                     <span class="barre" aria-hidden="true" />

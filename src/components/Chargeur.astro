@@ -4,6 +4,9 @@
 // Affiché à l'arrivée sur le site et au rechargement, pas en naviguant d'une page à l'autre.
 // Sans JavaScript, il n'apparaît jamais (voir la classe html.chargement posée dans Base.astro).
 import { profil } from '../data/profil';
+import { langueDe, t } from '../i18n';
+
+const tx = t(langueDe(Astro.url));
 
 const lignes = [44, 54, 64, 74, 84, 94];
 const ligneGauche = (y: number) => `M32 ${y}C50 ${y - 4} 72 ${y - 3} 90 ${y + 3}`;
@@ -42,7 +45,7 @@ const pageDroite = 'M100 34C118 24 150 21 178 26V112C150 107 118 110 100 120Z';
     </svg>
 
     <p class="chargeur-nom">{profil.nom}</p>
-    <p class="chargeur-texte">Ouverture des archives</p>
+    <p class="chargeur-texte">{tx.chargeur}</p>
     <span class="chargeur-barre"><span></span></span>
   </div>
 </div>

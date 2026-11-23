@@ -7,6 +7,9 @@ ordre: 2
 resume: "Réflexion puis mise en œuvre d'un dispositif de médiation culturelle appliqué à un monument contemporain de classe populaire, au Mans : rendre visible un patrimoine du quotidien."
 gravure: /gravures/mediation.jpg
 credit: "Thomas Allom, La Grande Galerie du Louvre, gravure, XIXᵉ siècle. Domaine public (Wikimedia Commons)."
+commune: Le Mans
+annotations:
+  - "Un patrimoine du quotidien"
 ---
 
 ## Le projet

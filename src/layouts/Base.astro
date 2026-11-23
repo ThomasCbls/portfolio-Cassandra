@@ -1,21 +1,31 @@
 ---
 import '../styles/global.css';
 import { profil } from '../data/profil';
+import { langueDe, lien, localiser, t, traduireChemin } from '../i18n';
 import Ambiance from '../components/Ambiance.astro';
 import Chargeur from '../components/Chargeur.astro';
+import Bougie from '../components/Bougie.astro';
+import Loupe from '../components/Loupe.astro';
 
 interface Props {
   titre?: string;
   description?: string;
 }
 
-const { titre, description = profil.presentation } = Astro.props;
+const lang = langueDe(Astro.url);
+const tx = t(lang);
+const p = localiser(profil, lang);
+const { titre, description = p.presentation } = Astro.props;
 const titrePage = titre ? `${titre}, ${profil.nom}` : `${profil.nom}`;
-const accueil = Astro.url.pathname === '/';
+const accueil = Astro.url.pathname === lien(lang, '/');
+const autre = lang === 'fr' ? 'en' : 'fr';
+const cheminFr = traduireChemin(Astro.url, 'fr');
+const cheminEn = traduireChemin(Astro.url, 'en');
+const absolu = (chemin: string) => (Astro.site ? new URL(chemin, Astro.site).href : chemin);
 ---
 
 <!doctype html>
-<html lang="fr">
+<html lang={lang}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -23,17 +33,21 @@ const accueil = Astro.url.pathname === '/';
     <!-- Aperçu lors d'un partage (LinkedIn, messageries) : renseigner `site` dans astro.config.mjs
          pour que l'adresse de l'image soit complète une fois le site en ligne -->
     <meta property="og:type" content="website" />
-    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:locale" content={tx.ogLocale} />
     <meta property="og:site_name" content={profil.nom} />
     <meta property="og:title" content={titrePage} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={Astro.site ? new URL('/og.png', Astro.site).href : '/og.png'} />
+    <meta property="og:image" content={absolu('/og.png')} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content={`Portfolio de ${profil.nom}`} />
-    {Astro.site && <meta property="og:url" content={new URL(Astro.url.pathname, Astro.site).href} />}
+    <meta property="og:image:alt" content={tx.portfolioDe(profil.nom)} />
+    {Astro.site && <meta property="og:url" content={absolu(Astro.url.pathname)} />}
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#0d0b08" />
+    <!-- Même page dans l'autre langue, pour les moteurs de recherche -->
+    <link rel="alternate" hreflang="fr" href={absolu(cheminFr)} />
+    <link rel="alternate" hreflang="en" href={absolu(cheminEn)} />
+    <link rel="alternate" hreflang="x-default" href={absolu(cheminFr)} />
     <!-- Icône du site : monogramme CL (public/favicon.svg, .ico pour les anciens navigateurs) -->
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -49,6 +63,13 @@ const accueil = Astro.url.pathname === '/';
       (function () {
         var html = document.documentElement;
         html.classList.add('js');
+        // Thème choisi lors d'une visite précédente (bougie soufflée = thème clair), appliqué avant l'affichage
+        try {
+          if (localStorage.getItem('theme') === 'clair') {
+            html.dataset.theme = 'clair';
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#efe4cc');
+          }
+        } catch (e) {}
         // Chargeur : à l'arrivée sur le site et au rechargement, pas en naviguant entre les pages
         try {
           var nav = performance.getEntriesByType('navigation')[0];
@@ -62,7 +83,7 @@ const accueil = Astro.url.pathname === '/';
   <body>
     <Chargeur />
     <Ambiance />
-    <a class="evitement" href="#contenu">Aller au contenu</a>
+    <a class="evitement" href="#contenu">{tx.evitement}</a>
     <header class="entete">
       {
         accueil ? (
@@ -70,17 +91,25 @@ const accueil = Astro.url.pathname === '/';
             <span class="ecrit">{profil.nom}</span>
           </span>
         ) : (
-          <a class="signature" href="/">
+          <a class="signature" href={lien(lang, '/')}>
             <span class="ecrit">{profil.nom}</span>
           </a>
         )
       }
-      <nav aria-label="Navigation principale">
-        <a href="/#parcours">Parcours</a>
-        <a href="/#travaux">Travaux</a>
-        <a href="/#competences">Compétences</a>
-        <a href="/#contact">Contact</a>
-      </nav>
+      <div class="entete-droite">
+        <nav aria-label={tx.navPrincipale}>
+          <a href={lien(lang, '/#parcours')}>{tx.nav.parcours}</a>
+          <a href={lien(lang, '/#travaux')}>{tx.nav.travaux}</a>
+          <a href={lien(lang, '/#competences')}>{tx.nav.competences}</a>
+          <a href={lien(lang, '/#contact')}>{tx.nav.contact}</a>
+        </nav>
+        <span class="outils-entete">
+          <a class="langue" href={autre === 'en' ? cheminEn : cheminFr} hreflang={autre} lang={autre} aria-label={tx.autreLangue.long}>
+            {tx.autreLangue.court}
+          </a>
+          <Bougie lang={lang} />
+        </span>
+      </div>
     </header>
     <main id="contenu">
       <slot />
@@ -96,6 +125,7 @@ const accueil = Astro.url.pathname === '/';
         </footer>
       )
     }
+    <Loupe />
     <script>
       // Apparition au défilement : chaque élément [data-reveal] reçoit .revele en entrant dans l'écran,
       // et le perd quand il en sort complètement : ses animations se rejouent au retour.
@@ -141,7 +171,7 @@ const accueil = Astro.url.pathname === '/';
     align-items: center;
     gap: 0.75rem 2rem;
     padding: clamp(1.4rem, 3.5vh, 2.1rem) calc(var(--gouttiere) + clamp(0.5rem, 1.2vw, 0.9rem) + 0.5rem);
-    background: linear-gradient(180deg, rgba(13, 11, 8, 0.85) 0%, rgba(13, 11, 8, 0.45) 60%, transparent 100%);
+    background: var(--entete-fond);
     pointer-events: none;
   }
 
@@ -157,12 +187,20 @@ const accueil = Astro.url.pathname === '/';
     text-decoration: none;
   }
 
+  .entete-droite {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem clamp(1rem, 3vw, 2.25rem);
+  }
+
   nav {
     display: flex;
     gap: clamp(1rem, 3vw, 2.25rem);
   }
 
-  nav a {
+  nav a,
+  .langue {
     font-size: 0.75rem;
     letter-spacing: 0.26em;
     text-transform: uppercase;
@@ -175,9 +213,41 @@ const accueil = Astro.url.pathname === '/';
       background-size 250ms ease;
   }
 
-  nav a:hover {
+  nav a:hover,
+  .langue:hover {
     color: var(--or-clair);
     background-size: 100% 1px;
+  }
+
+  .outils-entete {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding-left: clamp(0.75rem, 2vw, 1.5rem);
+    border-left: 1px solid var(--filet);
+  }
+
+  .langue {
+    letter-spacing: 0.16em;
+  }
+
+  /* Téléphones : nom, langue et bougie sur la première ligne, menu sur la seconde */
+  @media (max-width: 40rem) {
+    .entete-droite {
+      display: contents;
+    }
+
+    .outils-entete {
+      order: 1;
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    nav {
+      order: 2;
+      width: 100%;
+      justify-content: space-between;
+    }
   }
 
   @media (max-width: 30rem) {
@@ -188,6 +258,10 @@ const accueil = Astro.url.pathname === '/';
     nav a {
       font-size: 0.62rem;
       letter-spacing: 0.1em;
+    }
+
+    .entete-droite {
+      gap: 0.5rem 0.75rem;
     }
   }
 

@@ -1,0 +1,2383 @@
+---
+// Page d'accueil, commune aux deux langues (src/pages/index.astro et src/pages/en/index.astro).
+import Base from '../layouts/Base.astro';
+import Frise from './Frise.astro';
+import Carrousel from './Carrousel.astro';
+import Carte from './Carte.astro';
+import Icone from './Icone.astro';
+import Monogramme from './Monogramme.astro';
+import { profil as profilFr, parcours as parcoursFr, competences as competencesFr, outils as outilsFr } from '../data/profil';
+import { chargerTravaux } from '../data/travaux';
+import { lien, localiser, t, type Langue } from '../i18n';
+import { dateRepublicaine, romain } from '../data/republicain';
+
+interface Props {
+  lang: Langue;
+}
+
+const { lang } = Astro.props;
+const tx = t(lang);
+const profil = localiser(profilFr, lang);
+// Les dates françaises restent la référence de calcul de la frise (datesSource)
+const parcours = parcoursFr.map((p) => ({ ...localiser(p, lang), datesSource: p.dates }));
+const competences = competencesFr.map((c) => localiser(c, lang));
+const outils = outilsFr.map((o) => localiser(o, lang));
+const travaux = await chargerTravaux(lang);
+
+// Frise « Siècles étudiés » : seulement les travaux dont la période est renseignée
+const elementsFrise = travaux
+  .filter((t) => t.data.debut !== undefined && t.data.fin !== undefined)
+  .map((t) => ({
+    id: t.id,
+    titre: t.data.titre,
+    nature: t.data.nature,
+    debut: t.data.debut as number,
+    fin: t.data.fin as number,
+    enCours: t.data.enCours,
+  }));
+
+// Initiales pour le médaillon, quand il n'y a pas de portrait
+const initiales = profil.nom
+  .split(/\s+/)
+  .map((m) => m[0])
+  .join('');
+
+const annee = new Date().getFullYear();
+
+// Bibliothèque : dimensions des livres, variées pour un rayonnage naturel
+const hauteurs = [14, 12.4, 15.2, 13, 14.6, 12, 15.6, 13.4, 14.2, 12.8];
+const largeurs = [3.3, 2.8, 3.7, 3, 3.4, 2.9, 3.6, 3.1, 3.3, 2.9];
+
+// Date de la lettre (mise à jour dans le navigateur au jour de la visite)
+const dateLettre = new Date().toLocaleDateString(tx.locale, { day: 'numeric', month: 'long', year: 'numeric' });
+
+// Sceau de cire : contour irrégulier calculé une fois pour toutes
+const contourSceau = (() => {
+  const variations = [0, 3, -2, 4, 1, -3, 2, 5, -1, 3, -2, 2, 4, -3, 1, 3, -1, 2];
+  const pts = variations.map((v, i) => {
+    const a = (i / variations.length) * Math.PI * 2;
+    const r = 52 + v;
+    return [60 + r * Math.cos(a), 60 + r * Math.sin(a)];
+  });
+  const milieu = (p: number[], q: number[]) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+  let d = '';
+  pts.forEach((p, i) => {
+    const q = pts[(i + 1) % pts.length];
+    const m = milieu(p, q);
+    if (i === 0) d += `M${milieu(pts[pts.length - 1], p).map((n) => n.toFixed(1)).join(' ')}`;
+    d += `Q${p[0].toFixed(1)} ${p[1].toFixed(1)} ${m[0].toFixed(1)} ${m[1].toFixed(1)}`;
+  });
+  return d + 'Z';
+})();
+
+// Fêlure du sceau quand on le brise : ligne brisée de haut en bas, et les deux moitiés qu'elle découpe
+const fentePoints = [[57, 0], [62, 18], [55, 34], [64, 50], [56, 64], [63, 80], [55, 96], [61, 120]]
+  .map((p) => p.join(' '))
+  .join('L');
+const fente = `M${fentePoints}`;
+const clipGauche = `M-10 -10L57 -10L${fentePoints}L61 130L-10 130Z`;
+const clipDroite = `M130 -10L57 -10L${fentePoints}L61 130L130 130Z`;
+
+// Repères de navigation sur le côté de l'écran
+const ecrans = (['accueil', 'chronologie', 'travaux', 'geographie', 'competences', 'bibliotheque', 'contact'] as const).map(
+  (id) => ({ id, nom: tx.ecrans[id] }),
+);
+
+// Livres de la bibliothèque : le travail lié (s'il existe) pour le lien « Voir le projet »
+const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : undefined);
+---
+
+<Base>
+  <nav class="reperes" aria-label={tx.sections}>
+    <ol>
+      {
+        ecrans.map((e, i) => (
+          <li>
+            <a href={`#${e.id}`} data-ecran={e.id}>
+              <span class="repere-nom">{e.nom}</span>
+              <span class="repere-num">{romain(i + 1)}</span>
+              <span class="repere-trait" aria-hidden="true" />
+            </a>
+          </li>
+        ))
+      }
+    </ol>
+  </nav>
+
+  <!-- I. Introduction -->
+  <section id="accueil" class="ecran ouverture" aria-labelledby="nom">
+    <div class="contenu ouverture-grille" data-reveal>
+      <!-- Masqué tant que le médaillon n'a pas été ouvert (visible d'emblée sans JavaScript) -->
+      <div class="ouverture-texte" id="intro-texte">
+        <p class="surtitre" style="--i: 0"><span class="chapitre">{tx.chapitre} I</span> {tx.portfolio}</p>
+        <p class="script-intro" aria-hidden="true" style="--i: 1"><span class="ecrit">{tx.introduction}</span></p>
+        <h1 id="nom" tabindex="-1" style="--i: 2">{profil.nom}</h1>
+        <div class="filet" style="--i: 3"></div>
+        <p class="statut" style="--i: 4">{profil.statut}</p>
+        <p class="presentation" style="--i: 5">{profil.presentation}</p>
+        <div class="actions" style="--i: 6">
+          <a class="bouton bouton-plein" href="#travaux">{tx.decouvrir}</a>
+          <a class="bouton" href={profil.cv} download>{tx.telechargerCv}</a>
+        </div>
+      </div>
+
+      <div class="medaillon-zone">
+        <button
+          type="button"
+          class="medaillon"
+          aria-expanded="false"
+          aria-controls="intro-texte"
+          aria-label={tx.ouvrirPortfolio(profil.nom)}
+          data-curseur={tx.curseurOuvrir}
+        >
+          <span class="medaillon-onde" aria-hidden="true"></span>
+          <span class="medaillon-onde medaillon-onde-2" aria-hidden="true"></span>
+          <span class="medaillon-cadre objet-sombre">
+            {
+              profil.portrait ? (
+                <img src={profil.portrait} alt="" />
+              ) : (
+                <span class="monogramme">
+                  <Monogramme
+                    initiales={initiales}
+                    inscription={`${profil.nom} ✦ ${profil.devise} ✦ ${profil.ville} ✦ `.toUpperCase()}
+                    annee={romain(annee)}
+                  />
+                </span>
+              )
+            }
+          </span>
+        </button>
+
+        <p class="invitation" aria-hidden="true">
+          <span class="invitation-trait"></span>
+          <span class="invitation-texte">
+            <span class="sur-souris">{tx.cliquezMedaillon}</span>
+            <span class="sur-tactile">{tx.touchezMedaillon}</span>
+          </span>
+          <span class="invitation-trait"></span>
+        </p>
+      </div>
+    </div>
+
+    <a class="defiler" href="#chronologie">
+      <span>{tx.defiler}</span>
+      <span class="defiler-trait" aria-hidden="true"></span>
+    </a>
+  </section>
+
+  <!-- II. Chronologie -->
+  <section id="chronologie" class="ecran" aria-label="Chronologie">
+    <div class="contenu">
+      <Frise travaux={elementsFrise} parcours={parcours} lang={lang} />
+    </div>
+  </section>
+
+  <!-- III. Travaux -->
+  <Carrousel travaux={travaux} lang={lang} />
+
+  <!-- IV. Géographie -->
+  <Carte lang={lang} parcours={parcours} travaux={travaux} />
+
+  <!-- V. Compétences -->
+  <section id="competences" class="ecran competences-ecran" aria-labelledby="titre-competences">
+    <div class="contenu">
+      <div class="competences-entete" data-reveal>
+        <p class="surtitre"><span class="chapitre">{tx.chapitre} V</span> {tx.competences.surtitre}</p>
+        <h2 id="titre-competences" class="titre-section">{tx.competences.titre}</h2>
+        <div class="filet filet-centre"></div>
+      </div>
+      <ul class="competences">
+        {
+          competences.map((c, i) => (
+            <li class="competence" data-reveal style={`--delai: ${(i % 4) * 110}ms`}>
+              <span class="niche" aria-hidden="true">
+                <Icone nom={c.icone} />
+              </span>
+              <span class="competence-nom">{c.nom}</span>
+              {c.detail && <span class="competence-detail">{c.detail}</span>}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <!-- VI. Bibliothèque -->
+  <section id="bibliotheque" class="ecran bibliotheque-ecran" aria-labelledby="titre-bibliotheque">
+    <div class="contenu">
+      <div class="bibliotheque-entete" data-reveal>
+        <p class="surtitre"><span class="chapitre">{tx.chapitre} VI</span> {tx.bibliotheque.surtitre}</p>
+        <h2 id="titre-bibliotheque" class="titre-section">{tx.bibliotheque.titre}</h2>
+        <div class="filet filet-centre"></div>
+      </div>
+      <div class="etagere" data-reveal>
+        <ul class="livres">
+          {
+            outils.map((o, i) => (
+              <li
+                class="livre"
+                data-teinte={o.teinte}
+                style={`--h: ${hauteurs[i % hauteurs.length]}rem; --l: ${largeurs[i % largeurs.length]}rem; --i: ${i}`}
+              >
+                <button
+                  type="button"
+                  class="livre-bouton"
+                  aria-haspopup="dialog"
+                  aria-controls={`livre-${i}`}
+                  aria-label={tx.bibliotheque.ouvrir(o.nom)}
+                  data-curseur={tx.bibliotheque.curseur}
+                >
+                  <span class="livre-dos objet-sombre">
+                    <span class="livre-titre">{o.nom}</span>
+                  </span>
+                  <span class="livre-etiquette" aria-hidden="true">{o.rayon}</span>
+                </button>
+              </li>
+            ))
+          }
+        </ul>
+        <div class="planche" aria-hidden="true"></div>
+      </div>
+    </div>
+
+    <!-- Livres ouverts : une double page par outil -->
+    {
+      outils.map((o, i) => {
+        const travail = travailDe(o.travail);
+        const niveau = Math.min(3, Math.max(1, o.niveau ?? 1));
+        return (
+          <dialog class="livre-ouvert" id={`livre-${i}`} data-teinte={o.teinte} aria-labelledby={`livre-titre-${i}`}>
+            <div class="livre-couverture">
+              <div class="livre-page page-gauche">
+                <p class="page-rayon">
+                  {tx.bibliotheque.rayon} · {o.rayon}
+                </p>
+                <h3 id={`livre-titre-${i}`} class="page-titre">
+                  {o.nom}
+                </h3>
+                <div class="page-fleuron" aria-hidden="true">
+                  <span />
+                </div>
+                <p class="page-rubrique">{tx.bibliotheque.niveau}</p>
+                <p class="plumes" role="img" aria-label={`${niveau} / 3 : ${tx.bibliotheque.niveaux[niveau - 1]}`}>
+                  {[1, 2, 3].map((n) => (
+                    <svg viewBox="0 0 24 24" class:list={['plume', { pleine: n <= niveau }]} aria-hidden="true">
+                      <path d="M20 3c-6 0-11.5 4.5-12.5 11.5C14.5 13.5 19 9 20 3z" />
+                      <path d="M16 7 4.5 19.5" />
+                    </svg>
+                  ))}
+                </p>
+                <p class="page-niveau">{tx.bibliotheque.niveaux[niveau - 1]}</p>
+                <p class="page-folio" aria-hidden="true">
+                  {romain(2 * i + 1)}
+                </p>
+              </div>
+              <div class="livre-page page-droite">
+                <p class="page-rubrique">{tx.bibliotheque.usage}</p>
+                <p class="page-usage lettrine">{o.usage}</p>
+                {travail && (
+                  <p class="page-lien">
+                    <a href={lien(lang, `/travaux/${travail.id}/`)}>
+                      <span class="page-lien-libelle">{tx.bibliotheque.exemple}</span>
+                      <span class="page-lien-titre">{travail.data.titre} →</span>
+                    </a>
+                  </p>
+                )}
+                <p class="page-folio" aria-hidden="true">
+                  {romain(2 * i + 2)}
+                </p>
+              </div>
+            </div>
+            <button type="button" class="livre-fermer" aria-label={tx.bibliotheque.fermer}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </dialog>
+        );
+      })
+    }
+  </section>
+
+  <!-- VII. Contact : une lettre scellée -->
+  <section id="contact" class="ecran contact" aria-labelledby="titre-contact">
+    <div class="contenu" data-reveal>
+      <p class="surtitre"><span class="chapitre">{tx.chapitre} VII</span> {tx.contact.surtitre}</p>
+      <h2 id="titre-contact" class="titre-section">{tx.contact.titre}</h2>
+
+      <div class="lettre">
+        <p class="lettre-date">
+          {tx.contact.date(profil.ville)}<time
+            class="date-du-jour"
+            tabindex="0"
+            data-locale={tx.locale}
+            data-lang={lang}
+            aria-describedby="date-republicaine">{dateLettre}</time
+          ><span class="date-republicaine" id="date-republicaine" role="tooltip">
+            <span class="date-republicaine-libelle">{tx.contact.republicain}</span>
+            <span class="date-republicaine-texte">{dateRepublicaine(new Date(), lang)}</span>
+          </span>
+        </p>
+        <p class="lettre-salutation">{tx.contact.salutation}</p>
+        <p class="lettre-corps">{tx.contact.corps}</p>
+        <p class="lettre-courriel">
+          <a href={`mailto:${profil.email}`}>{profil.email}</a>
+        </p>
+        <p class="lettre-signature">{profil.nom}</p>
+
+        <!-- Sceau de cire : un clic le brise et copie l'adresse -->
+        <button
+          type="button"
+          class="sceau"
+          aria-label={tx.contact.sceau}
+          data-curseur={tx.contact.curseurSceau}
+          data-email={profil.email}
+          data-copiee={tx.contact.copiee}
+          data-impossible={tx.contact.copieImpossible}
+        >
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <radialGradient id="cire" cx="0.42" cy="0.38" r="0.7">
+                <stop offset="0" stop-color="#c2412f"></stop>
+                <stop offset="0.55" stop-color="#8f2219"></stop>
+                <stop offset="1" stop-color="#5a110c"></stop>
+              </radialGradient>
+              <clipPath id="sceau-gauche"><path d={clipGauche}></path></clipPath>
+              <clipPath id="sceau-droite"><path d={clipDroite}></path></clipPath>
+            </defs>
+            {
+              ['gauche', 'droite'].map((cote) => (
+                <g class={`moitie moitie-${cote}`} clip-path={`url(#sceau-${cote})`}>
+                  <path d={contourSceau} fill="url(#cire)" />
+                  <circle cx="60" cy="60" r="37" fill="none" stroke="#5a110c" stroke-width="2.5" opacity="0.7" />
+                  <circle cx="60" cy="60" r="35" fill="none" stroke="#d9654f" stroke-width="0.8" opacity="0.45" />
+                  <text x="61" y="76" class="sceau-lettres sceau-ombre">
+                    {initiales}
+                  </text>
+                  <text x="59.5" y="74.5" class="sceau-lettres">
+                    {initiales}
+                  </text>
+                </g>
+              ))
+            }
+            <path d={fente} class="fente" pathLength="1"></path>
+          </svg>
+        </button>
+        <p class="sceau-message" role="status"></p>
+      </div>
+
+      <ul class="liens">
+        <li><a class="bouton" href={profil.cv} download>{tx.contact.cv}</a></li>
+        {
+          profil.liens.map((l) => (
+            <li>
+              <a
+                class="bouton"
+                href={l.url}
+                target={'target' in l ? l.target : undefined}
+                rel={'target' in l && l.target === '_blank' ? 'me noopener noreferrer' : 'me'}
+              >
+                {l.nom}
+                {'target' in l && l.target === '_blank' && <span class="visuellement-cache">{tx.contact.nouvelOnglet}</span>}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <p class="signature-pied">
+      <span class="losange" aria-hidden="true"></span>
+      {profil.nom} · {annee}
+      <span class="losange" aria-hidden="true"></span>
+    </p>
+  </section>
+
+</Base>
+
+<script>
+  import { dateRepublicaine } from '../data/republicain';
+
+  // ——— La lettre est datée du jour de la visite (et du calendrier républicain au survol) ———
+  const date = document.querySelector<HTMLElement>('.date-du-jour');
+  if (date) {
+    const aujourdhui = new Date();
+    date.textContent = aujourdhui.toLocaleDateString(date.dataset.locale || 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    const republicaine = document.querySelector('.date-republicaine-texte');
+    if (republicaine) republicaine.textContent = dateRepublicaine(aujourdhui, date.dataset.lang === 'en' ? 'en' : 'fr');
+  }
+
+  // ——— Sceau de cire : il se brise, l'adresse est copiée ———
+  const sceau = document.querySelector<HTMLButtonElement>('.sceau');
+  const message = document.querySelector<HTMLElement>('.sceau-message');
+  let reformer = 0;
+
+  const annoncer = (texte: string) => {
+    if (!message) return;
+    message.textContent = texte;
+    message.classList.remove('visible');
+    void message.offsetWidth; // relance l'animation
+    message.classList.add('visible');
+  };
+
+  sceau?.addEventListener('click', async () => {
+    if (sceau.classList.contains('brise')) return;
+    const email = sceau.dataset.email ?? '';
+    sceau.classList.remove('reappose');
+    sceau.classList.add('brise');
+
+    try {
+      await navigator.clipboard.writeText(email);
+      annoncer(sceau.dataset.copiee ?? '');
+    } catch {
+      // Presse-papiers refusé : on sélectionne l'adresse pour une copie à la main
+      const lienCourriel = document.querySelector('.lettre-courriel a');
+      if (lienCourriel) {
+        const plage = document.createRange();
+        plage.selectNodeContents(lienCourriel);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(plage);
+      }
+      annoncer(sceau.dataset.impossible ?? '');
+    }
+
+    // Un nouveau sceau est apposé quelques secondes plus tard
+    window.clearTimeout(reformer);
+    reformer = window.setTimeout(() => {
+      sceau.classList.remove('brise');
+      sceau.classList.add('reappose');
+    }, 3200);
+  });
+
+  // ——— Livres de la bibliothèque : une double page s'ouvre ———
+  const reduitLivres = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  document.querySelectorAll<HTMLButtonElement>('.livre-bouton').forEach((bouton) => {
+    const livre = document.getElementById(bouton.getAttribute('aria-controls') ?? '') as HTMLDialogElement | null;
+    if (!livre) return;
+
+    bouton.addEventListener('click', () => {
+      livre.classList.remove('fermeture');
+      livre.showModal();
+    });
+
+    // Fermeture : le livre se referme avant de disparaître
+    const fermer = () => {
+      if (!livre.open || livre.classList.contains('fermeture')) return;
+      if (reduitLivres) return livre.close();
+      livre.classList.add('fermeture');
+      window.setTimeout(() => {
+        livre.close();
+        livre.classList.remove('fermeture');
+      }, 380);
+    };
+
+    livre.querySelector('.livre-fermer')?.addEventListener('click', fermer);
+    livre.addEventListener('cancel', (e) => {
+      e.preventDefault();
+      fermer();
+    });
+    // Clic en dehors du livre (sur le fond assombri)
+    livre.addEventListener('click', (e) => {
+      if (e.target === livre) fermer();
+    });
+  });
+</script>
+
+<script>
+  // ——— Ouverture de l'introduction ———
+  // Au départ, seul le médaillon est affiché. Au clic, il glisse à sa place
+  // (technique FLIP : on mesure avant / après, puis on anime l'écart) et le texte apparaît.
+  const ouverture = document.querySelector<HTMLElement>('.ouverture');
+  const medaillon = ouverture?.querySelector<HTMLButtonElement>('.medaillon');
+  const titre = ouverture?.querySelector<HTMLElement>('h1');
+  const cle = 'intro-ouverte';
+  const reduit = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const marquerOuvert = () => {
+    if (!ouverture || !medaillon) return;
+    ouverture.classList.add('ouverte');
+    medaillon.setAttribute('aria-expanded', 'true');
+    medaillon.removeAttribute('data-curseur');
+    medaillon.tabIndex = -1;
+    try {
+      sessionStorage.setItem(cle, '1');
+    } catch {
+      // stockage indisponible (navigation privée) : sans conséquence
+    }
+  };
+
+  const ouvrir = () => {
+    if (!ouverture || !medaillon || ouverture.classList.contains('ouverte')) return;
+
+    if (reduit) {
+      marquerOuvert();
+      titre?.focus({ preventScroll: true });
+      return;
+    }
+
+    const avant = medaillon.getBoundingClientRect();
+    ouverture.classList.add('eclat');
+    marquerOuvert();
+    const apres = medaillon.getBoundingClientRect();
+
+    const dx = avant.left + avant.width / 2 - (apres.left + apres.width / 2);
+    const dy = avant.top + avant.height / 2 - (apres.top + apres.height / 2);
+    const echelle = avant.width / apres.width;
+    const depart = `translate(${dx}px, ${dy}px) scale(${echelle})`;
+    const appui = `translate(${dx}px, ${dy}px) scale(${echelle * 0.94})`;
+
+    medaillon.animate([{ transform: depart }, { transform: appui, offset: 0.12 }, { transform: 'none' }], {
+      duration: 1400,
+      easing: 'cubic-bezier(0.65, 0, 0.25, 1)',
+    });
+
+    titre?.focus({ preventScroll: true });
+  };
+
+  // Déjà ouvert pendant cette visite : on n'impose pas de recliquer en revenant d'une fiche
+  // (bouton Retour ou lien interne). Un rechargement de la page (F5, Ctrl+Maj+R) ou une arrivée
+  // depuis un autre site remet l'introduction à zéro.
+  const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+  const rechargement = navigation?.type === 'reload';
+  let depuisLeSite = false;
+  try {
+    depuisLeSite = !!document.referrer && new URL(document.referrer).origin === location.origin;
+  } catch {
+    depuisLeSite = false;
+  }
+  const retour = navigation?.type === 'back_forward' || depuisLeSite;
+
+  let dejaOuvert = false;
+  try {
+    if (rechargement) sessionStorage.removeItem(cle);
+    dejaOuvert = !rechargement && retour && sessionStorage.getItem(cle) === '1';
+  } catch {
+    dejaOuvert = false;
+  }
+  if (dejaOuvert && ouverture) {
+    ouverture.classList.add('sans-animation');
+    marquerOuvert();
+  }
+
+  medaillon?.addEventListener('click', ouvrir);
+</script>
+
+<script>
+  // ——— Pages empilées et repère latéral ———
+  // Les positions « au repos » des écrans sont mesurées une fois (puis à chaque changement de taille) :
+  // au défilement, tout se calcule à partir de window.scrollY, sans relire la mise en page,
+  // et on n'écrit dans le DOM que ce qui a changé.
+  const ecrans = [...document.querySelectorAll<HTMLElement>('main > .ecran')];
+  const liensReperes = [...document.querySelectorAll<HTMLAnchorElement>('.reperes a')];
+  const racine = document.documentElement;
+  const moinsDeMouvement = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const empile = !moinsDeMouvement && ecrans.length > 1;
+
+  if (empile) racine.classList.add('empilement');
+
+  // Voile qui assombrit l'écran recouvert (une opacité s'anime sans redessiner la page)
+  const voiles = ecrans.map((ecran) => {
+    if (!empile) return null;
+    const voile = document.createElement('span');
+    voile.className = 'voile';
+    voile.setAttribute('aria-hidden', 'true');
+    ecran.append(voile);
+    return voile;
+  });
+
+  let hFenetre = window.innerHeight;
+  let plages: { debut: number; fin: number }[] = [];
+
+  // Mesure (lectures groupées), puis collage (écritures groupées) :
+  // un écran plus haut que la fenêtre se colle par le bas, tout son contenu reste lisible.
+  const mesurer = () => {
+    hFenetre = window.innerHeight;
+    const hauteurs = ecrans.map((e) => e.offsetHeight);
+    const main = ecrans[0]?.parentElement;
+    let y = main ? main.getBoundingClientRect().top + window.scrollY : 0;
+    plages = hauteurs.map((h) => {
+      const debut = y;
+      y += h;
+      return { debut, fin: debut + Math.max(0, h - hFenetre) };
+    });
+    if (!empile) return;
+    ecrans.forEach((e, i) => {
+      const top = `${Math.min(0, hFenetre - hauteurs[i])}px`;
+      if (e.style.top !== top) e.style.top = top;
+    });
+  };
+
+  const parts = ecrans.map(() => -1);
+  const recouverts = ecrans.map(() => false);
+  let courantId = '';
+  let enAttente = false;
+
+  const mettreAJour = () => {
+    enAttente = false;
+    const y = window.scrollY;
+    let courant = 0;
+
+    ecrans.forEach((ecran, i) => {
+      if (plages[i].debut - y <= hFenetre * 0.5) courant = i;
+
+      // Part de l'écran recouverte par le suivant (0 → 1)
+      const suivant = plages[i + 1];
+      const part = suivant ? Math.round(Math.min(1, Math.max(0, 1 - (suivant.debut - y) / hFenetre)) * 1000) / 1000 : 0;
+
+      if (empile && part !== parts[i]) {
+        parts[i] = part;
+        ecran.style.transform = part > 0 ? `scale(${1 - part * 0.07})` : '';
+        const voile = voiles[i];
+        if (voile) voile.style.opacity = part > 0 ? String(part * 0.65) : '';
+      }
+
+      // Entièrement recouvert : ses animations se réinitialisent (elles se rejoueront au retour)
+      const recouvert = part >= 0.999;
+      if (recouvert !== recouverts[i]) {
+        recouverts[i] = recouvert;
+        ecran.classList.toggle('recouverte', recouvert);
+        ecran.querySelectorAll('[data-reveal]').forEach((el) => el.classList.toggle('revele', !recouvert));
+      }
+    });
+
+    const id = ecrans[courant]?.id ?? '';
+    if (id !== courantId) {
+      courantId = id;
+      liensReperes.forEach((l) => {
+        if (l.dataset.ecran === id) l.setAttribute('aria-current', 'true');
+        else l.removeAttribute('aria-current');
+      });
+    }
+  };
+
+  const demander = () => {
+    if (enAttente) return;
+    enAttente = true;
+    requestAnimationFrame(mettreAJour);
+  };
+
+  const remesurer = () => {
+    mesurer();
+    demander();
+  };
+
+  mesurer();
+  mettreAJour();
+  window.addEventListener('scroll', demander, { passive: true });
+  window.addEventListener('resize', remesurer);
+  window.addEventListener('load', remesurer);
+  document.fonts?.ready?.then(remesurer);
+  // La hauteur des écrans change quand on ouvre l'introduction ou qu'on change d'onglet de frise
+  if ('ResizeObserver' in window) {
+    const surveillance = new ResizeObserver(remesurer);
+    ecrans.forEach((e) => surveillance.observe(e));
+  }
+
+  // ——— Liens internes (menu, repères, « Découvrir mes travaux »…) ———
+  // Les écrans sont collés (sticky) : une fois en bas de page, ils sont tous « en haut de l'écran »
+  // aux yeux du navigateur, qui croit donc qu'il n'y a pas à défiler pour les atteindre.
+  // On calcule nous-mêmes la position de l'écran visé dans le flux de la page.
+  if (empile) {
+    document.addEventListener('click', (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const lien = (e.target as Element | null)?.closest?.<HTMLAnchorElement>('a[href*="#"]');
+      if (!lien || (lien.target && lien.target !== '_self') || lien.hasAttribute('download')) return;
+
+      const url = new URL(lien.href, location.href);
+      if (url.origin !== location.origin || url.pathname !== location.pathname || url.hash.length < 2) return;
+
+      const cible = document.getElementById(decodeURIComponent(url.hash.slice(1)));
+      const i = cible ? ecrans.findIndex((ecran) => ecran.contains(cible)) : -1;
+      if (i < 0) return;
+
+      e.preventDefault();
+      if (location.hash !== url.hash) history.pushState(null, '', url.hash);
+      // Prévient la frise (le lien « Parcours » ouvre la vue parcours)
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+
+      mesurer();
+      window.scrollTo({ top: plages[i].debut, behavior: 'smooth' });
+
+      // Le focus suit (lecteurs d'écran, touche Tab), sans provoquer de défilement
+      const ecran = ecrans[i];
+      if (!ecran.hasAttribute('tabindex')) ecran.setAttribute('tabindex', '-1');
+      ecran.focus({ preventScroll: true });
+    });
+  }
+
+  // ——— Aimantation : une page s'affiche toujours en entier ———
+  // Quand le défilement s'arrête entre deux pages, on termine le mouvement en douceur
+  // vers la page la plus proche, dans le sens du défilement. Les pages plus hautes que
+  // la fenêtre peuvent être lues librement d'un bout à l'autre.
+  if (empile) {
+    let dernierY = window.scrollY;
+    let sens = 0;
+    let doigtPose = false;
+    let attenteAimant = 0;
+
+    const aimanter = () => {
+      if (doigtPose) return;
+      const y = window.scrollY;
+      // Déjà sur une position de lecture : rien à faire
+      if (plages.some((p) => y >= p.debut - 2 && y <= p.fin + 2)) return;
+      // Entre la fin d'une page et le début de la suivante
+      const i = plages.findIndex((p, k) => k < plages.length - 1 && y > p.fin && y < plages[k + 1].debut);
+      if (i < 0) return;
+      const avant = plages[i].fin;
+      const apres = plages[i + 1].debut;
+      const progression = (y - avant) / (apres - avant);
+      // Un petit élan suffit à passer à la page suivante (ou à revenir)
+      const cible = sens > 0 ? (progression > 0.12 ? apres : avant) : sens < 0 ? (progression < 0.88 ? avant : apres) : progression > 0.5 ? apres : avant;
+      window.scrollTo({ top: cible, behavior: 'smooth' });
+    };
+
+    // On attend la vraie fin du mouvement (inertie du pavé tactile ou du doigt comprise)
+    // pour ne pas se battre avec l'utilisateur.
+    const programmer = (delai: number) => {
+      window.clearTimeout(attenteAimant);
+      attenteAimant = window.setTimeout(aimanter, delai);
+    };
+
+    window.addEventListener(
+      'scroll',
+      () => {
+        const y = window.scrollY;
+        if (y !== dernierY) sens = y > dernierY ? 1 : -1;
+        dernierY = y;
+        programmer(220);
+      },
+      { passive: true },
+    );
+    // Navigateurs récents : l'évènement « fin de défilement » est plus fiable qu'un minuteur
+    if ('onscrollend' in window) window.addEventListener('scrollend', () => programmer(60));
+    window.addEventListener('wheel', () => programmer(220), { passive: true });
+    window.addEventListener('touchstart', () => {
+      doigtPose = true;
+      window.clearTimeout(attenteAimant);
+    }, { passive: true });
+    const lever = () => {
+      doigtPose = false;
+      programmer(220);
+    };
+    window.addEventListener('touchend', lever, { passive: true });
+    window.addEventListener('touchcancel', lever, { passive: true });
+  }
+</script>
+
+<style>
+  /* ——— Repères latéraux ——— */
+  .reperes {
+    position: fixed;
+    right: calc(var(--gouttiere) * 0.5 + 0.9rem);
+    top: 50%;
+    z-index: 40;
+    translate: 0 -50%;
+  }
+
+  .reperes ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .reperes a {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    padding: 0.3rem 0;
+    color: var(--gris-or);
+    text-decoration: none;
+  }
+
+  .repere-nom {
+    font-size: 0.65rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    opacity: 0;
+    translate: 0.5rem 0;
+    transition:
+      opacity 250ms ease,
+      translate 250ms ease;
+  }
+
+  .repere-num {
+    font-family: var(--f-titre);
+    font-size: 0.85rem;
+    min-width: 1.6rem;
+    text-align: right;
+  }
+
+  .repere-trait {
+    width: 0.9rem;
+    height: 1px;
+    background: currentColor;
+    transition: width 300ms ease;
+  }
+
+  .reperes a:hover .repere-nom,
+  .reperes a:focus-visible .repere-nom {
+    opacity: 1;
+    translate: none;
+  }
+
+  .reperes a[aria-current='true'],
+  .reperes a:hover {
+    color: var(--or-clair);
+  }
+
+  .reperes a[aria-current='true'] .repere-trait {
+    width: 2rem;
+  }
+
+  @media (max-width: 70rem) {
+    .reperes {
+      display: none;
+    }
+  }
+
+  /* ——— Introduction ——— */
+  .ouverture-grille {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    align-items: center;
+    gap: 2.5rem clamp(2rem, 6vw, 5rem);
+  }
+
+  .script-intro {
+    font-family: var(--f-script);
+    font-size: clamp(2rem, 5vw, 3.25rem);
+    line-height: 1;
+    color: var(--or);
+    margin: 1rem 0 -0.35rem;
+  }
+
+  h1 {
+    font-family: var(--f-affiche);
+    font-size: clamp(3rem, 9vw, 7.25rem);
+    font-weight: 400;
+    line-height: 0.95;
+    letter-spacing: -0.015em;
+    color: var(--ivoire);
+  }
+
+  /* Le titre reçoit le focus à l'ouverture (pour les lecteurs d'écran) : pas de cadre visible */
+  #nom:focus {
+    outline: none;
+  }
+
+  .ouverture .filet {
+    max-width: 22rem;
+    margin: 1.75rem 0 1.5rem;
+  }
+
+  .statut {
+    font-family: var(--f-titre);
+    font-style: italic;
+    font-size: clamp(1.25rem, 2.5vw, 1.7rem);
+    line-height: 1.3;
+    color: var(--or-clair);
+  }
+
+  .presentation {
+    max-width: var(--mesure);
+    margin-top: 0.85rem;
+    font-size: 1.15rem;
+    color: var(--texte-doux);
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    margin-top: 2rem;
+  }
+
+  /* Médaillon : un bouton tant que l'introduction est fermée */
+  .medaillon-zone {
+    position: relative;
+    justify-self: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: min(100%, 23rem);
+  }
+
+  .medaillon {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    border-radius: 50%;
+    transform-origin: center;
+  }
+
+  .ouverte .medaillon {
+    cursor: default;
+  }
+
+  .medaillon:focus-visible {
+    outline: none;
+  }
+
+  .medaillon:focus-visible .medaillon-cadre {
+    box-shadow:
+      0 0 0 6px var(--carte),
+      0 0 0 8px var(--or-clair),
+      0 30px 60px -20px rgba(0, 0, 0, 0.8);
+  }
+
+  .medaillon-cadre {
+    position: relative;
+    display: block;
+    aspect-ratio: 3 / 4;
+    border-radius: 50%;
+    padding: 0.6rem;
+    border: 1px solid var(--or);
+    box-shadow:
+      0 0 0 6px var(--carte),
+      0 0 0 7px var(--filet),
+      0 30px 60px -20px rgba(0, 0, 0, 0.8);
+    transition: box-shadow 500ms ease;
+  }
+
+  .medaillon-cadre img,
+  .monogramme {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .monogramme {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    background:
+      radial-gradient(60% 50% at 50% 38%, rgba(236, 217, 168, 0.16), transparent 70%),
+      radial-gradient(100% 100% at 50% 100%, #2a1f15, #120e0a);
+    border: 1px solid var(--filet);
+  }
+
+  .initiales {
+    font-family: var(--f-script);
+    font-size: clamp(5rem, 14vw, 9rem);
+    line-height: 1;
+    color: var(--or-clair);
+    text-shadow: 0 0 40px rgba(236, 217, 168, 0.25);
+    padding-right: 0.15em;
+    transition: text-shadow 500ms ease;
+  }
+
+  /* Ondes dorées qui invitent au clic */
+  .medaillon-onde {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid var(--or-clair);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Invitation sous le médaillon */
+  .invitation {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    margin-top: clamp(1.75rem, 5vh, 2.75rem);
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--or-clair);
+    white-space: nowrap;
+  }
+
+  .invitation-trait {
+    width: 2.5rem;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--or));
+  }
+
+  .invitation-trait:last-child {
+    background: linear-gradient(90deg, var(--or), transparent);
+  }
+
+  .sur-tactile {
+    display: none;
+  }
+
+  @media (hover: none) {
+    .sur-souris {
+      display: none;
+    }
+
+    .sur-tactile {
+      display: inline;
+    }
+  }
+
+  /* ——— État fermé (avec JavaScript seulement) : les initiales seules, au centre ——— */
+  :global(.js) .ouverture:not(.ouverte) .ouverture-grille {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  :global(.js) .ouverture:not(.ouverte) .ouverture-texte {
+    display: none;
+  }
+
+  :global(.js) .ouverture:not(.ouverte) .medaillon-zone {
+    width: min(78vw, 25rem, 39vh);
+  }
+
+  :global(.js) .ouverture:not(.ouverte) .medaillon:hover .medaillon-cadre {
+    box-shadow:
+      0 0 0 6px var(--carte),
+      0 0 0 7px var(--or),
+      0 0 60px -6px rgba(236, 217, 168, 0.35),
+      0 30px 60px -20px rgba(0, 0, 0, 0.8);
+  }
+
+  :global(.js) .ouverture:not(.ouverte) .medaillon:hover .monogramme {
+    filter: brightness(1.15) drop-shadow(0 0 18px rgba(236, 217, 168, 0.25));
+  }
+
+  .monogramme {
+    transition: filter 500ms ease;
+  }
+
+  :global(html:not(.js)) .invitation,
+  .ouverte .invitation {
+    display: none;
+  }
+
+  :global(.js) .ouverture:not(.ouverte) .defiler {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .defiler {
+    transition: opacity 800ms ease 1.6s;
+  }
+
+  .sans-animation .defiler {
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* Respiration lente du médaillon et ondes qui s'en échappent */
+    :global(.js) .ouverture:not(.ouverte) .medaillon {
+      animation: respirer 3.2s ease-in-out infinite;
+    }
+
+    :global(.js) .ouverture:not(.ouverte) .medaillon-onde {
+      animation: onde 3.2s cubic-bezier(0.2, 0.7, 0.2, 1) infinite;
+    }
+
+    :global(.js) .ouverture:not(.ouverte) .medaillon-onde-2 {
+      animation-delay: 1.6s;
+    }
+
+    :global(.js) .ouverture:not(.ouverte) .invitation {
+      animation: inviter 3.2s ease-in-out infinite;
+    }
+
+    @keyframes respirer {
+      50% {
+        transform: scale(1.025);
+      }
+    }
+
+    @keyframes onde {
+      0% {
+        opacity: 0.6;
+        transform: scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(1.22);
+      }
+    }
+
+    @keyframes inviter {
+      0%,
+      100% {
+        opacity: 0.55;
+      }
+      50% {
+        opacity: 1;
+      }
+    }
+
+    /* Au clic : un éclat d'or part du médaillon */
+    .eclat .medaillon-onde {
+      animation: eclat 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    }
+
+    .eclat .medaillon-onde-2 {
+      animation-delay: 140ms;
+    }
+
+    @keyframes eclat {
+      0% {
+        opacity: 0.9;
+        transform: scale(1);
+        border-width: 2px;
+      }
+      100% {
+        opacity: 0;
+        transform: scale(1.6);
+        border-width: 1px;
+      }
+    }
+
+    /* Le texte de l'introduction surgit ligne à ligne */
+    .ouverte:not(.sans-animation) .ouverture-texte > * {
+      animation: surgir 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+      animation-delay: calc(550ms + var(--i) * 140ms);
+    }
+
+    .ouverte:not(.sans-animation) .ouverture-texte > .filet {
+      animation-name: deplier;
+      transform-origin: left center;
+    }
+
+    @keyframes surgir {
+      from {
+        opacity: 0;
+        transform: translateY(1.75rem);
+        filter: blur(6px);
+      }
+    }
+
+    @keyframes deplier {
+      from {
+        opacity: 0;
+        transform: scaleX(0);
+      }
+    }
+  }
+
+  .devise {
+    font-size: 0.6875rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gris-or);
+  }
+
+  /* Invitation à défiler */
+  /* Sous le médaillon, dans la colonne de droite */
+  .defiler {
+    position: absolute;
+    right: calc(var(--gouttiere) + 5rem + min(100% - 2 * (var(--gouttiere) + 5rem), var(--largeur)) * 0.2);
+    bottom: clamp(1.25rem, 3vh, 2.25rem);
+    z-index: 1;
+    translate: 50% 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gris-or);
+    text-decoration: none;
+  }
+
+  .defiler-trait {
+    position: relative;
+    width: 1px;
+    height: 2.75rem;
+    overflow: hidden;
+    background: rgba(201, 169, 110, 0.2);
+  }
+
+  .defiler-trait::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--or-clair);
+    transform: translateY(-100%);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .defiler-trait::after {
+      animation: descendre 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    }
+
+    @keyframes descendre {
+      0% {
+        transform: translateY(-100%);
+      }
+      50% {
+        transform: translateY(0);
+      }
+      100% {
+        transform: translateY(100%);
+      }
+    }
+  }
+
+  /* ——— Compétences ——— */
+  .competences-entete {
+    text-align: center;
+  }
+
+  .competences-entete .titre-section,
+  .contact .titre-section {
+    margin-inline: auto;
+  }
+
+  .competences-entete .filet {
+    max-width: 24rem;
+    margin-inline: auto;
+  }
+
+  .competences {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(1rem, 2.5vw, 1.75rem);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .competence {
+    flex: 0 1 14.25rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 1.4rem 1.1rem 1.4rem;
+    border: 1px solid var(--filet-pale);
+    background: var(--encart-fort);
+    transition:
+      border-color 350ms ease,
+      background-color 350ms ease;
+  }
+
+  .competence:hover {
+    border-color: rgba(201, 169, 110, 0.5);
+    background: rgba(236, 217, 168, 0.05);
+  }
+
+  /* Niche en arc, comme une alcôve de bibliothèque */
+  .niche {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 4.25rem;
+    height: 5.25rem;
+    border: 1px solid rgba(201, 169, 110, 0.6);
+    border-radius: 999px 999px 3px 3px;
+    background: radial-gradient(70% 55% at 50% 45%, rgba(236, 217, 168, 0.14), transparent 75%);
+    color: var(--or-clair);
+    transition:
+      box-shadow 400ms ease,
+      border-color 400ms ease;
+  }
+
+  .niche::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 1px solid var(--filet-pale);
+    border-radius: inherit;
+  }
+
+  .niche :global(.icone) {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+
+  .competence:hover .niche {
+    border-color: var(--or-clair);
+    box-shadow: 0 0 28px -4px rgba(236, 217, 168, 0.35);
+  }
+
+  .competence-nom {
+    margin-top: 1rem;
+    font-family: var(--f-titre);
+    font-size: 1.3rem;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--ivoire);
+  }
+
+  .competence-detail {
+    margin-top: 0.4rem;
+    font-size: 0.92rem;
+    line-height: 1.45;
+    color: var(--gris-or);
+  }
+
+  /* Les pictogrammes se dessinent à l'apparition, puis au survol */
+  @media (prefers-reduced-motion: no-preference) {
+    .competence :global(.icone path) {
+      stroke-dasharray: 1;
+      stroke-dashoffset: 0;
+    }
+
+    :global(.js) .competence:not(.revele) :global(.icone path) {
+      stroke-dashoffset: 1;
+    }
+
+    :global(.js) .competence.revele :global(.icone path) {
+      animation: dessiner 1400ms cubic-bezier(0.65, 0, 0.35, 1) backwards;
+      animation-delay: calc(var(--delai, 0ms) + 300ms + var(--n) * 90ms);
+    }
+
+    .competence:hover :global(.icone path) {
+      animation: redessiner 1100ms cubic-bezier(0.65, 0, 0.35, 1) backwards !important;
+      animation-delay: calc(var(--n) * 70ms) !important;
+    }
+
+    @keyframes dessiner {
+      from {
+        stroke-dashoffset: 1;
+      }
+    }
+
+    @keyframes redessiner {
+      from {
+        stroke-dashoffset: 1;
+      }
+    }
+  }
+
+  /* ——— Bibliothèque : les outils comme des livres sur une étagère ——— */
+  .bibliotheque-entete {
+    text-align: center;
+  }
+
+  .bibliotheque-entete .titre-section {
+    margin-inline: auto;
+  }
+
+  .bibliotheque-entete .filet {
+    max-width: 24rem;
+    margin-inline: auto;
+  }
+
+  .etagere {
+    position: relative;
+    max-width: 52rem;
+    margin: clamp(1.5rem, 5vh, 3rem) auto 0;
+  }
+
+  .livres {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 0.3rem;
+    min-height: 17rem;
+    margin: 0;
+    padding: 0 1.5rem;
+    list-style: none;
+  }
+
+  .livre {
+    --teinte: #4a3324;
+    position: relative;
+    flex: none;
+    width: var(--l);
+    height: var(--h);
+    outline: none;
+    transition:
+      transform 450ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      filter 300ms ease;
+  }
+
+  .livre[data-teinte='bordeaux'] {
+    --teinte: #5c1a1b;
+  }
+
+  .livre[data-teinte='vert'] {
+    --teinte: #1f3a2b;
+  }
+
+  .livre[data-teinte='bleu'] {
+    --teinte: #1d2a45;
+  }
+
+  .livre[data-teinte='cuir'] {
+    --teinte: #6a4322;
+  }
+
+  .livre[data-teinte='brun'] {
+    --teinte: #45301f;
+  }
+
+  /* Dos du livre : cuir arrondi, nervures dorées en haut et en bas */
+  .livre-dos {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 3px 3px 1px 1px;
+    background:
+      linear-gradient(90deg, rgba(0, 0, 0, 0.5), transparent 16%, rgba(255, 240, 210, 0.1) 42%, transparent 62%, rgba(0, 0, 0, 0.55)),
+      var(--teinte);
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+      0 10px 18px -8px rgba(0, 0, 0, 0.9);
+  }
+
+  .livre-dos::before,
+  .livre-dos::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 0.55rem;
+    border-top: 1px solid rgba(201, 169, 110, 0.75);
+    border-bottom: 1px solid rgba(201, 169, 110, 0.75);
+  }
+
+  .livre-dos::before {
+    top: 0.9rem;
+  }
+
+  .livre-dos::after {
+    bottom: 0.9rem;
+  }
+
+  .livre-titre {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    max-height: calc(var(--h) - 3.5rem);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: var(--f-affiche);
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+    color: var(--or-clair);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  }
+
+  /* Étiquette du rayon, au-dessus du livre tiré */
+  .livre-etiquette {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 0.8rem);
+    z-index: 2;
+    translate: -50% 0.4rem;
+    padding: 0.35rem 0.7rem;
+    white-space: nowrap;
+    font-size: 0.68rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--or-clair);
+    background: var(--carte);
+    border: 1px solid rgba(201, 169, 110, 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity 250ms ease,
+      translate 250ms ease;
+  }
+
+  /* Le livre entier est un bouton qui ouvre sa double page */
+  .livre-bouton {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .livre-bouton:focus-visible {
+    outline: none;
+  }
+
+  .livre:is(:hover, :focus-within) {
+    z-index: 2;
+    transform: translateY(-1.1rem) rotate(-2.5deg);
+    filter: brightness(1.2);
+  }
+
+  .livre:is(:hover, :focus-within) .livre-etiquette {
+    opacity: 1;
+    translate: -50% 0;
+  }
+
+  .livre-bouton:focus-visible .livre-dos {
+    outline: 1px solid var(--or-clair);
+    outline-offset: 3px;
+  }
+
+  /* ——— Livre ouvert : double page sur sa couverture de cuir ——— */
+  .livre-ouvert {
+    --teinte: #4a3324;
+    width: min(54rem, calc(100vw - 2rem));
+    max-height: calc(100dvh - 2rem);
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #2b2117;
+    overflow: visible;
+  }
+
+  .livre-ouvert[data-teinte='bordeaux'] {
+    --teinte: #5c1a1b;
+  }
+
+  .livre-ouvert[data-teinte='vert'] {
+    --teinte: #1f3a2b;
+  }
+
+  .livre-ouvert[data-teinte='bleu'] {
+    --teinte: #1d2a45;
+  }
+
+  .livre-ouvert[data-teinte='cuir'] {
+    --teinte: #6a4322;
+  }
+
+  .livre-ouvert[data-teinte='brun'] {
+    --teinte: #45301f;
+  }
+
+  .livre-ouvert::backdrop {
+    background: rgba(8, 6, 4, 0.72);
+  }
+
+  .livre-couverture {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 0.7rem;
+    border-radius: 6px;
+    background:
+      linear-gradient(90deg, rgba(0, 0, 0, 0.35), transparent 8%, transparent 92%, rgba(0, 0, 0, 0.35)),
+      var(--teinte);
+    box-shadow:
+      inset 0 0 0 1px rgba(201, 169, 110, 0.45),
+      0 40px 80px -20px rgba(0, 0, 0, 0.95);
+    perspective: 2000px;
+  }
+
+  .livre-page {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: min(26rem, 70dvh);
+    padding: clamp(1.5rem, 4vw, 2.75rem) clamp(1.25rem, 3.5vw, 2.5rem) 2.75rem;
+    background: radial-gradient(120% 90% at 30% 20%, #f6ecd5 0%, #ecdfbf 60%, #dccaa0 100%);
+    overflow: auto;
+  }
+
+  /* Pli central : ombre de la reliure */
+  .page-gauche {
+    border-radius: 3px 0 0 3px;
+    box-shadow: inset -28px 0 30px -18px rgba(90, 60, 20, 0.5);
+    align-items: center;
+    text-align: center;
+    justify-content: center;
+    transform-origin: right center;
+  }
+
+  .page-droite {
+    border-radius: 0 3px 3px 0;
+    box-shadow: inset 28px 0 30px -18px rgba(90, 60, 20, 0.5);
+    justify-content: center;
+  }
+
+  .page-rayon,
+  .page-rubrique {
+    font-size: 0.68rem;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: #8a6a3a;
+  }
+
+  .page-titre {
+    margin-top: 0.75rem;
+    font-family: var(--f-affiche);
+    font-weight: 400;
+    font-size: clamp(2rem, 5vw, 3rem);
+    line-height: 1.05;
+    color: #2b2117;
+  }
+
+  .page-fleuron {
+    position: relative;
+    width: 9rem;
+    height: 1px;
+    margin: 1.4rem auto 1.6rem;
+    background: linear-gradient(90deg, transparent, #8a6a3a, transparent);
+  }
+
+  .page-fleuron span {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    background: #8a6a3a;
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+
+  .plumes {
+    display: flex;
+    justify-content: center;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+  }
+
+  .plume {
+    width: 1.9rem;
+    height: 1.9rem;
+    fill: none;
+    stroke: #8a6a3a;
+    stroke-width: 1.2;
+    stroke-linecap: round;
+    opacity: 0.45;
+  }
+
+  .plume.pleine {
+    fill: #8f2219;
+    stroke: #5a110c;
+    opacity: 1;
+  }
+
+  .page-niveau {
+    margin-top: 0.5rem;
+    font-family: var(--f-script);
+    font-size: 1.6rem;
+    color: #3a2a1a;
+  }
+
+  .page-usage {
+    margin-top: 0.8rem;
+    font-size: 1.15rem;
+    line-height: 1.55;
+    color: #3a2c1e;
+  }
+
+  .page-usage::first-letter {
+    color: #8f2219;
+    text-shadow: none;
+  }
+
+  .page-lien {
+    margin-top: 1.5rem;
+  }
+
+  .page-lien a {
+    display: inline-flex;
+    flex-direction: column;
+    color: #2b2117;
+    text-decoration: none;
+  }
+
+  .page-lien-libelle {
+    font-size: 0.68rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #8f2219;
+  }
+
+  .page-lien-titre {
+    font-family: var(--f-titre);
+    font-style: italic;
+    font-size: 1.25rem;
+    line-height: 1.25;
+    background: linear-gradient(#8f2219, #8f2219) left bottom / 0 1px no-repeat;
+    transition: background-size 300ms ease;
+  }
+
+  .page-lien a:hover .page-lien-titre,
+  .page-lien a:focus-visible .page-lien-titre {
+    background-size: 100% 1px;
+  }
+
+  .page-lien a:focus-visible {
+    outline-color: #8f2219;
+  }
+
+  .page-folio {
+    position: absolute;
+    bottom: 1rem;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: var(--f-titre);
+    font-style: italic;
+    font-size: 0.85rem;
+    color: #8a6a3a;
+  }
+
+  .livre-fermer {
+    position: absolute;
+    top: -0.9rem;
+    right: -0.9rem;
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: 1px solid rgba(201, 169, 110, 0.7);
+    border-radius: 50%;
+    background: #17130e;
+    color: #ecd9a8;
+    cursor: pointer;
+    transition:
+      background-color 250ms ease,
+      color 250ms ease;
+  }
+
+  .livre-fermer svg {
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  .livre-fermer:hover {
+    background: #ecd9a8;
+    color: #17130e;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* Ouverture : la couverture se soulève, la page de gauche se déplie comme une couverture */
+    .livre-ouvert[open] {
+      animation: livre-arrive 500ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    }
+
+    .livre-ouvert[open]::backdrop {
+      animation: fond-arrive 400ms ease both;
+    }
+
+    .livre-ouvert[open] .page-gauche {
+      animation: page-deplie 900ms cubic-bezier(0.3, 0.6, 0.2, 1) 120ms both;
+    }
+
+    .livre-ouvert[open] .page-droite > * {
+      animation: encre 700ms ease both;
+      animation-delay: 550ms;
+    }
+
+    .livre-ouvert.fermeture {
+      animation: livre-part 380ms cubic-bezier(0.5, 0, 0.75, 0) both;
+    }
+
+    .livre-ouvert.fermeture::backdrop {
+      animation: fond-part 380ms ease both;
+    }
+
+    @keyframes livre-arrive {
+      from {
+        opacity: 0;
+        transform: translateY(2.5rem) scale(0.88);
+      }
+    }
+
+    @keyframes livre-part {
+      to {
+        opacity: 0;
+        transform: translateY(1.5rem) scale(0.92);
+      }
+    }
+
+    @keyframes fond-arrive {
+      from {
+        opacity: 0;
+      }
+    }
+
+    @keyframes fond-part {
+      to {
+        opacity: 0;
+      }
+    }
+
+    @keyframes page-deplie {
+      from {
+        transform: rotateY(-115deg);
+        filter: brightness(0.6);
+      }
+    }
+
+    @keyframes encre {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .livre-couverture {
+      grid-template-columns: 1fr;
+    }
+
+    .livre-page {
+      min-height: 0;
+      padding-bottom: 2.5rem;
+    }
+
+    .page-gauche {
+      border-radius: 3px 3px 0 0;
+      box-shadow: inset 0 -28px 30px -18px rgba(90, 60, 20, 0.5);
+      transform-origin: center bottom;
+    }
+
+    .page-droite {
+      border-radius: 0 0 3px 3px;
+      box-shadow: inset 0 28px 30px -18px rgba(90, 60, 20, 0.5);
+    }
+
+    .livre-fermer {
+      top: -0.6rem;
+      right: -0.4rem;
+    }
+  }
+
+  /* Planche de bois au liseré doré */
+  .planche {
+    height: 1.1rem;
+    border-top: 1px solid rgba(201, 169, 110, 0.7);
+    border-radius: 0 0 3px 3px;
+    background: linear-gradient(180deg, #5a3b21, #2e1d10 70%, #1c120a);
+    box-shadow: 0 22px 34px -12px rgba(0, 0, 0, 0.95);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .etagere:not(.revele) .livre {
+      opacity: 0;
+    }
+
+    :global(.js) .etagere.revele .livre {
+      animation: ranger 800ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+      animation-delay: calc(250ms + var(--i) * 80ms);
+    }
+
+    @keyframes ranger {
+      from {
+        opacity: 0;
+        transform: translateY(-2.5rem) rotate(4deg);
+      }
+    }
+  }
+
+  /* ——— Contact : une lettre sur papier ancien, fermée d'un sceau ——— */
+  .contact {
+    text-align: center;
+  }
+
+  .contact .titre-section {
+    margin: 0.2rem auto 0;
+  }
+
+  .lettre {
+    position: relative;
+    max-width: 35rem;
+    margin: clamp(1rem, 3vh, 1.75rem) auto 0;
+    padding: clamp(1.5rem, 4vh, 2.5rem) clamp(1.5rem, 4vw, 3rem) clamp(1.75rem, 4vh, 2.5rem);
+    text-align: left;
+    color: #2b2117;
+    background: radial-gradient(120% 90% at 30% 20%, #f4e9d0 0%, #e9dab7 55%, #d6c194 100%);
+    border-radius: 2px;
+    rotate: -1.2deg;
+    box-shadow:
+      inset 0 0 70px rgba(120, 80, 30, 0.35),
+      inset 0 0 0 1px rgba(90, 60, 20, 0.15),
+      0 30px 60px -18px rgba(0, 0, 0, 0.95);
+  }
+
+  /* Fibres du papier */
+  .lettre::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0.35;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.32 0 0 0 0 0.15 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .lettre > :not(.sceau, .sceau-message) {
+    position: relative;
+  }
+
+  .lettre-date {
+    z-index: 3;
+    text-align: right;
+    font-family: var(--f-script);
+    font-size: 1.45rem;
+    line-height: 1.2;
+    color: #4a3622;
+  }
+
+  /* Date du jour : au survol, sa traduction dans le calendrier républicain */
+  .date-du-jour {
+    border-bottom: 1px dotted rgba(74, 54, 34, 0.55);
+    cursor: help;
+  }
+
+  .date-du-jour:focus-visible {
+    outline-color: #8f2219;
+  }
+
+  .date-republicaine {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.5rem);
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    width: max-content;
+    max-width: min(22rem, 80vw);
+    padding: 0.6rem 0.9rem;
+    text-align: right;
+    background: #2b2117;
+    border: 1px solid rgba(201, 169, 110, 0.6);
+    box-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.7);
+    opacity: 0;
+    translate: 0 -4px;
+    pointer-events: none;
+    transition:
+      opacity 250ms ease,
+      translate 250ms ease;
+  }
+
+  .date-republicaine-libelle {
+    font-family: var(--f-texte);
+    font-size: 0.62rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: #c9a96e;
+  }
+
+  .date-republicaine-texte {
+    font-family: var(--f-titre);
+    font-style: italic;
+    font-size: 1.15rem;
+    color: #f1e8d4;
+  }
+
+  .date-du-jour:is(:hover, :focus-visible) + .date-republicaine {
+    opacity: 1;
+    translate: none;
+  }
+
+  .lettre-salutation {
+    margin-top: 0.6rem;
+    font-family: var(--f-script);
+    font-size: 1.65rem;
+    line-height: 1.2;
+  }
+
+  .lettre-corps {
+    margin-top: 0.6rem;
+    font-style: italic;
+    font-size: 1.1rem;
+    line-height: 1.55;
+    color: #3a2c1e;
+  }
+
+  .lettre-courriel {
+    margin-top: 1rem;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+
+  .lettre-courriel a {
+    font-family: var(--f-affiche);
+    font-size: clamp(1.15rem, 3vw, 1.75rem);
+    color: #2b2117;
+    text-decoration: none;
+    background: linear-gradient(#8f2219, #8f2219) left bottom / 100% 1px no-repeat;
+    transition:
+      color 250ms ease,
+      background-size 300ms ease;
+  }
+
+  .lettre-courriel a:hover {
+    color: #8f2219;
+    background-size: 100% 2px;
+  }
+
+  .lettre-courriel a:focus-visible {
+    outline-color: #8f2219;
+  }
+
+  .lettre-signature {
+    margin-top: 0.9rem;
+    padding-right: 4.5rem;
+    text-align: right;
+    font-family: var(--f-script);
+    font-size: 2rem;
+    line-height: 1.1;
+    color: #3a2a1a;
+  }
+
+  /* Sceau de cire rouge à tes initiales : un bouton qui se brise et copie l'adresse */
+  .sceau {
+    position: absolute;
+    right: -1.6rem;
+    bottom: -1.9rem;
+    z-index: 2;
+    width: 6.75rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    cursor: pointer;
+    rotate: 8deg;
+    filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.55));
+    transition: scale 300ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  .sceau svg {
+    display: block;
+    width: 100%;
+    overflow: visible;
+  }
+
+  .sceau:hover:not(.brise) {
+    scale: 1.06;
+  }
+
+  .sceau:focus-visible {
+    outline: 2px solid #8f2219;
+    outline-offset: 4px;
+  }
+
+  .moitie {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .fente {
+    fill: none;
+    stroke: #3a0805;
+    stroke-width: 1.6;
+    stroke-linejoin: round;
+    opacity: 0;
+  }
+
+  .sceau.brise {
+    cursor: default;
+  }
+
+  .sceau.brise .moitie,
+  .sceau.brise .fente {
+    pointer-events: none;
+  }
+
+  /* Petit mot à la plume : « Adresse copiée » */
+  .sceau-message {
+    position: absolute;
+    right: 4.5rem;
+    bottom: -2.4rem;
+    z-index: 3;
+    padding: 0.2rem 0.8rem;
+    font-family: var(--f-script);
+    font-size: 1.5rem;
+    line-height: 1.2;
+    color: #8f2219;
+    background: rgba(244, 233, 208, 0.92);
+    border-radius: 2px;
+    box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.5);
+    rotate: -3deg;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .sceau-message:empty {
+    display: none;
+  }
+
+  .sceau-message.visible {
+    animation: mot-plume 3000ms ease both;
+  }
+
+  @keyframes mot-plume {
+    0% {
+      opacity: 0;
+      translate: 0 6px;
+    }
+    12%,
+    80% {
+      opacity: 1;
+      translate: none;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sceau.brise {
+      opacity: 0.35;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* La fêlure apparaît, puis les deux moitiés tombent de part et d'autre */
+    .sceau.brise .fente {
+      animation: felure 900ms ease both;
+    }
+
+    .sceau.brise .moitie-gauche {
+      animation: tomber-gauche 1100ms cubic-bezier(0.5, 0, 0.75, 0.4) 180ms both;
+    }
+
+    .sceau.brise .moitie-droite {
+      animation: tomber-droite 1150ms cubic-bezier(0.5, 0, 0.75, 0.4) 220ms both;
+    }
+
+    /* Un nouveau sceau est apposé (nom d'animation distinct pour qu'elle reparte de zéro) */
+    :global(.js) .contact .contenu .sceau.reappose {
+      animation: reapposer 900ms cubic-bezier(0.3, 1.35, 0.5, 1) both;
+    }
+
+    @keyframes reapposer {
+      0% {
+        opacity: 0;
+        transform: scale(2.3) rotate(-28deg);
+      }
+      65% {
+        opacity: 1;
+        transform: scale(0.9) rotate(3deg);
+      }
+      100% {
+        transform: none;
+      }
+    }
+
+    @keyframes felure {
+      0% {
+        opacity: 0;
+        stroke-dasharray: 1;
+        stroke-dashoffset: 1;
+      }
+      25% {
+        opacity: 1;
+        stroke-dashoffset: 0;
+      }
+      40%,
+      100% {
+        opacity: 0;
+        stroke-dasharray: 1;
+        stroke-dashoffset: 0;
+      }
+    }
+
+    @keyframes tomber-gauche {
+      0% {
+        transform: none;
+      }
+      15% {
+        transform: translate(-3px, -2px) rotate(-4deg);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-26px, 70px) rotate(-38deg);
+      }
+    }
+
+    @keyframes tomber-droite {
+      0% {
+        transform: none;
+      }
+      15% {
+        transform: translate(3px, -1px) rotate(5deg);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(24px, 78px) rotate(42deg);
+      }
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .sceau-message {
+      right: 3rem;
+      bottom: -2.6rem;
+      font-size: 1.3rem;
+    }
+  }
+
+  .sceau-lettres {
+    font-family: var(--f-script);
+    font-size: 46px;
+    text-anchor: middle;
+    fill: #a3301f;
+  }
+
+  .sceau-ombre {
+    fill: #4a0d08;
+    opacity: 0.8;
+  }
+
+  .liens {
+    list-style: none;
+    padding: 0;
+    margin: clamp(2rem, 5vh, 3rem) 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem 1rem;
+  }
+
+  .signature-pied {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: clamp(1.25rem, 3vh, 2rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--gris-or);
+  }
+
+  .losange {
+    width: 5px;
+    height: 5px;
+    background: var(--or);
+    transform: rotate(45deg);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* Le sceau est apposé une fois la lettre à l'écran */
+    :global(.js) .contact .contenu:not(.revele) .sceau {
+      opacity: 0;
+    }
+
+    :global(.js) .contact .contenu.revele .sceau {
+      animation: apposer 900ms cubic-bezier(0.3, 1.35, 0.5, 1) 1100ms backwards;
+    }
+
+    @keyframes apposer {
+      0% {
+        opacity: 0;
+        transform: scale(2.3) rotate(-28deg);
+        filter: drop-shadow(0 40px 30px rgba(0, 0, 0, 0.4));
+      }
+      65% {
+        opacity: 1;
+        transform: scale(0.9) rotate(3deg);
+      }
+      100% {
+        transform: none;
+      }
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .livres {
+      flex-wrap: wrap;
+      row-gap: 2.2rem;
+      min-height: 0;
+      padding: 0;
+    }
+
+    .livre {
+      height: calc(var(--h) * 0.72);
+      width: calc(var(--l) * 0.85);
+    }
+
+    /* Sur téléphone, chaque rangée a sa planche */
+    .livre::after {
+      content: '';
+      position: absolute;
+      left: -0.2rem;
+      right: -0.2rem;
+      bottom: -0.65rem;
+      height: 0.65rem;
+      border-top: 1px solid rgba(201, 169, 110, 0.6);
+      background: linear-gradient(180deg, #5a3b21, #2e1d10);
+    }
+
+    .planche {
+      display: none;
+    }
+
+    .sceau {
+      width: 5rem;
+      right: -0.6rem;
+      bottom: -1.6rem;
+    }
+
+    .lettre-signature {
+      padding-right: 3.5rem;
+      font-size: 1.7rem;
+    }
+  }
+
+  /* ——— Petits écrans ——— */
+  @media (max-width: 56rem) {
+    .ouverture-grille {
+      grid-template-columns: 1fr;
+    }
+
+    .medaillon-zone {
+      order: -1;
+      width: min(60%, 13rem);
+    }
+
+    .defiler {
+      display: none;
+    }
+
+  }
+
+  @media (max-width: 36rem) {
+    /* Téléphones : pictogramme à gauche, texte à droite */
+    .competence {
+      flex-basis: 100%;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 0 1rem;
+      text-align: left;
+      padding: 1rem;
+    }
+
+    .niche {
+      grid-row: span 2;
+      width: 3.5rem;
+      height: 4.25rem;
+    }
+
+    .niche :global(.icone) {
+      width: 1.8rem;
+      height: 1.8rem;
+    }
+
+    .competence-nom {
+      margin-top: 0;
+      align-self: end;
+    }
+
+    .competence-detail {
+      align-self: start;
+    }
+  }
+</style>

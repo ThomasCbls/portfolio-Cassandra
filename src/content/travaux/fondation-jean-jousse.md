@@ -5,6 +5,10 @@ nature: Stage, archéologie et recherche
 annee: 2025
 ordre: 4
 resume: "Rédaction et valorisation de la communication scientifique, initiation à l'archéologie et à la paléontologie, médiation culturelle et animation d'ateliers pour le public."
+commune: La Ferté-Bernard
+annotations:
+  - "Journées du patrimoine"
+  - "Fête de la science"
 ---
 
 ## Missions

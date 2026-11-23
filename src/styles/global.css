@@ -1,5 +1,8 @@
-/* Dark academia : bois sombre, vernis, dorure à la feuille, ivoire de vélin */
-:root {
+/* Dark academia : bois sombre, vernis, dorure à la feuille, ivoire de vélin.
+   `.objet-sombre` redonne ces couleurs aux objets qui restent sombres en thème clair
+   (médaillons, dos des livres) : un médaillon émaillé posé sur du vélin. */
+:root,
+.objet-sombre {
   --fond: #0d0b08;
   --carte: #17130e;
   --carte-haut: #221a12;
@@ -44,7 +47,71 @@
   --mesure: 40rem;
   --espace-cartes: clamp(1.25rem, 3vw, 2rem);
 
+  /* Surfaces et textes secondaires (redéfinis par le thème clair) */
+  --texte-doux: #ddd3bd;
+  --encart-fort: rgba(13, 11, 8, 0.35);
+  --entete-fond: linear-gradient(180deg, rgba(13, 11, 8, 0.85) 0%, rgba(13, 11, 8, 0.45) 60%, transparent 100%);
+  --page-fond:
+    radial-gradient(70rem 40rem at 50% -10%, rgba(120, 86, 44, 0.22), transparent 70%),
+    radial-gradient(50rem 40rem at 100% 60%, rgba(90, 40, 28, 0.12), transparent 70%), #0d0b08;
+  --ecran-fond:
+    radial-gradient(90% 70% at 12% 0%, #221a12 0%, transparent 60%),
+    radial-gradient(70% 70% at 100% 100%, #1d1610 0%, transparent 55%), #15110d;
+  --carte-fond:
+    radial-gradient(120% 90% at 10% 0%, var(--carte-haut) 0%, transparent 60%),
+    radial-gradient(90% 80% at 100% 100%, #1d1610 0%, transparent 55%), var(--carte);
+  --bulle-fond: #1b1610;
+
   color-scheme: dark;
+}
+
+/* ——— Thème clair : papier vélin, encre brune, dorure assombrie pour rester lisible ——— */
+html[data-theme='clair'] {
+  --fond: #efe4cc;
+  --carte: #f6eedb;
+  --carte-haut: #fbf6e8;
+  --encart: rgba(110, 80, 35, 0.06);
+
+  --or: #8a6a2f;
+  --or-clair: #6b4c1c;
+  --or-sombre: #b8955a;
+  --filet: rgba(120, 88, 40, 0.32);
+  --filet-pale: rgba(120, 88, 40, 0.17);
+
+  --ivoire: #2b2117;
+  --gris-or: #6e604c;
+
+  --braise: #b4472f;
+  --braise-clair: #9c3a24;
+  --braise-sombre: #e2a08b;
+
+  --texte-doux: #3d3024;
+  --encart-fort: rgba(255, 250, 238, 0.55);
+  --entete-fond: linear-gradient(180deg, rgba(239, 228, 204, 0.92) 0%, rgba(239, 228, 204, 0.55) 60%, transparent 100%);
+  --page-fond:
+    radial-gradient(70rem 40rem at 50% -10%, rgba(255, 250, 235, 0.8), transparent 70%),
+    radial-gradient(50rem 40rem at 100% 60%, rgba(180, 120, 70, 0.1), transparent 70%), #efe4cc;
+  --ecran-fond:
+    radial-gradient(90% 70% at 12% 0%, #fbf6e8 0%, transparent 60%),
+    radial-gradient(70% 70% at 100% 100%, #e6d6b4 0%, transparent 55%), #f1e7d0;
+  --carte-fond:
+    radial-gradient(120% 90% at 10% 0%, #fffaf0 0%, transparent 60%),
+    radial-gradient(90% 80% at 100% 100%, #eadcbd 0%, transparent 55%), var(--carte);
+  --bulle-fond: #fbf6e8;
+
+  color-scheme: light;
+}
+
+/* Changement de thème : le nouveau thème s'ouvre en cercle depuis la bougie (animé en JavaScript),
+   à la place de la page qui tourne utilisée entre deux pages */
+html.changement-theme::view-transition-old(root),
+html.changement-theme::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html.changement-theme::view-transition-new(root) {
+  z-index: 3;
 }
 
 *,
@@ -77,10 +144,7 @@ body {
   font-variant-numeric: oldstyle-nums proportional-nums;
   font-variant-ligatures: common-ligatures contextual;
   font-kerning: normal;
-  background:
-    radial-gradient(70rem 40rem at 50% -10%, rgba(120, 86, 44, 0.22), transparent 70%),
-    radial-gradient(50rem 40rem at 100% 60%, rgba(90, 40, 28, 0.12), transparent 70%),
-    var(--fond);
+  background: var(--page-fond);
 }
 
 /* Grain de papier très léger sur toute la page */
@@ -158,10 +222,7 @@ a:hover {
 .carte {
   position: relative;
   padding: clamp(1.75rem, 5vw, 3.5rem) clamp(1.25rem, 5vw, 3.5rem);
-  background:
-    radial-gradient(120% 90% at 10% 0%, var(--carte-haut) 0%, transparent 60%),
-    radial-gradient(90% 80% at 100% 100%, #1d1610 0%, transparent 55%),
-    var(--carte);
+  background: var(--carte-fond);
   border-radius: 2px;
   box-shadow:
     0 1px 0 rgba(236, 217, 168, 0.07) inset,
@@ -210,10 +271,7 @@ a:hover {
   min-height: 100svh;
   padding: clamp(5.5rem, 12vh, 7.5rem) calc(var(--gouttiere) + var(--marge-cadre)) clamp(3rem, 8vh, 5rem);
   /* Fond opaque : les écrans s'empilent comme des pages (la poussière dorée passe au-dessus) */
-  background:
-    radial-gradient(90% 70% at 12% 0%, #221a12 0%, transparent 60%),
-    radial-gradient(70% 70% at 100% 100%, #1d1610 0%, transparent 55%),
-    #15110d;
+  background: var(--ecran-fond);
   scroll-snap-align: start;
   overflow: clip;
 }
@@ -260,8 +318,9 @@ a:hover {
 
 /* ——— Défilement en pages empilées ———
    Chaque écran reste collé en haut pendant que le suivant glisse par-dessus.
-   --recouvre (0 → 1, calculé au défilement) fait reculer et assombrir l'écran qu'on quitte.
-   Le décalage `top` des écrans plus hauts que la fenêtre est calculé en JavaScript. */
+   Au défilement, le JavaScript fait reculer l'écran qu'on quitte (transform) et l'assombrit
+   avec un voile noir (opacity) : deux propriétés que la carte graphique anime sans redessiner la page.
+   Le décalage `top` des écrans plus hauts que la fenêtre est aussi calculé en JavaScript. */
 html.empilement {
   scroll-snap-type: none;
 }
@@ -270,9 +329,21 @@ html.empilement {
   position: sticky;
   top: 0;
   transform-origin: 50% 0;
-  transform: scale(calc(1 - var(--recouvre, 0) * 0.07));
-  filter: brightness(calc(1 - var(--recouvre, 0) * 0.65));
-  border-radius: calc(var(--recouvre, 0) * 28px);
+  will-change: transform;
+}
+
+.empilement main > .ecran:focus {
+  outline: none;
+}
+
+.voile {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity;
 }
 
 .empilement main > .ecran + .ecran {
@@ -574,8 +645,8 @@ html.empilement {
   padding: 0.8rem 1rem;
   font-size: 0.9rem;
   line-height: 1.5;
-  color: #ddd3bd;
-  background: #1b1610;
+  color: var(--texte-doux);
+  background: var(--bulle-fond);
   border: 1px solid rgba(201, 169, 110, 0.5);
   box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.8);
   pointer-events: none;
@@ -653,5 +724,207 @@ html.empilement {
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(root) {
     animation-duration: 0s;
+  }
+}
+
+/* ——— 9. Impression : un dossier propre, encre noire sur papier blanc, sans animations ——— */
+@media print {
+  :root,
+  html[data-theme='clair'],
+  .objet-sombre {
+    --fond: #fff;
+    --carte: #fff;
+    --carte-haut: #fff;
+    --encart: transparent;
+    --or: #6b5326;
+    --or-clair: #3b2a12;
+    --or-sombre: #8a6a2f;
+    --filet: #bbb;
+    --filet-pale: #ddd;
+    --ivoire: #111;
+    --gris-or: #444;
+    --braise: #8f2219;
+    --braise-clair: #8f2219;
+    --texte-doux: #222;
+    --encart-fort: transparent;
+    --page-fond: #fff;
+    --ecran-fond: #fff;
+    --carte-fond: #fff;
+    --entete-fond: none;
+    color-scheme: light;
+  }
+
+  @page {
+    margin: 1.6cm 1.5cm;
+  }
+
+  html {
+    font-size: 11pt;
+  }
+
+  body {
+    color: #111;
+    background: #fff;
+  }
+
+  body::before,
+  .ambiance,
+  .curseur,
+  .chargeur,
+  .loupe,
+  .reperes,
+  .evitement,
+  .entete nav,
+  .outils-entete,
+  .defiler,
+  .invitation,
+  .medaillon-zone,
+  .carrousel-pied,
+  .compteur,
+  .onglets,
+  .lieu-bouton,
+  .invitation-lieu,
+  .livre-ouvert,
+  .livre-etiquette,
+  .sceau-message,
+  .date-republicaine,
+  .voile,
+  .retour,
+  .filigrane,
+  .diapo-fond,
+  .signature-pied {
+    display: none !important;
+  }
+
+  .entete {
+    position: static;
+    padding: 0 0 0.5cm;
+    border-bottom: 1px solid #999;
+  }
+
+  /* Les écrans redeviennent des sections qui se suivent */
+  .ecran,
+  .empilement main > .ecran {
+    position: static !important;
+    min-height: 0 !important;
+    padding: 0.8cm 0 !important;
+    transform: none !important;
+    background: none !important;
+    box-shadow: none !important;
+    overflow: visible;
+  }
+
+  .ecran::before,
+  .ecran::after {
+    display: none;
+  }
+
+  .ecran + .ecran {
+    break-before: page;
+  }
+
+  /* Tout le contenu est visible, sans attendre d'animation */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  [data-reveal],
+  .anime,
+  .diapo-medaillon,
+  .etiquette,
+  .lieu,
+  .fil,
+  .sceau,
+  .tampon,
+  .annotation,
+  .livre {
+    opacity: 1 !important;
+    translate: none !important;
+    scale: none !important;
+    clip-path: none !important;
+  }
+
+  .titre-section,
+  .ecrit {
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+  }
+
+  .barre {
+    clip-path: none !important;
+  }
+
+  .cours {
+    stroke-dashoffset: 0 !important;
+  }
+
+  /* Introduction ouverte même si le médaillon n'a pas été cliqué */
+  .js .ouverture:not(.ouverte) .ouverture-texte {
+    display: block !important;
+  }
+
+  .js .ouverture:not(.ouverte) .ouverture-grille {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Frise : les deux vues ; carrousel : toutes les diapositives, à la suite */
+  .vue[hidden] {
+    display: block !important;
+    margin-top: 0.8cm;
+  }
+
+  .js .diapo {
+    grid-area: auto !important;
+    visibility: visible !important;
+    break-inside: avoid;
+  }
+
+  .diapo + .diapo {
+    margin-top: 0.6cm;
+    padding-top: 0.6cm;
+    border-top: 1px solid #bbb;
+  }
+
+  .fiche-lieu[hidden] {
+    display: block !important;
+  }
+
+  .fiche-lieu {
+    break-inside: avoid;
+    margin-bottom: 0.4cm;
+  }
+
+  .competence,
+  .lettre,
+  .carte-papier,
+  .notice {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+
+  .bouton,
+  .bouton-plein {
+    padding: 0;
+    border: 0;
+    background: none !important;
+    color: #111 !important;
+    letter-spacing: 0.08em;
+  }
+
+  /* Adresse des liens externes et des fiches, écrite après le lien */
+  .liens a[href^='http']::after,
+  .diapo-titre a::after {
+    content: ' (' attr(href) ')';
+    font-size: 0.8em;
+    letter-spacing: 0;
+    text-transform: none;
+    color: #555;
+  }
+
+  a {
+    color: inherit !important;
   }
 }

@@ -18,10 +18,14 @@
 
 <script>
   const reduit = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const racine = document.documentElement;
+
+  // Lissage indépendant de la fréquence de l'écran (60 Hz, 120 Hz…) : k est donné pour 60 images/s
+  const lisser = (k: number, pas: number) => 1 - Math.pow(1 - k, pas);
 
   /* ——— Poussière dorée ——— */
   const toile = document.querySelector<HTMLCanvasElement>('.poussiere');
-  const ctx = toile?.getContext('2d');
+  const ctx = toile?.getContext('2d', { alpha: true });
 
   if (toile && ctx && !reduit) {
     interface Grain {
@@ -54,55 +58,100 @@
       };
     };
 
+    // Grains très fins et flous : une définition simple suffit, et coûte 4 à 9 fois moins
+    // à redessiner qu'en pleine résolution sur les écrans Retina / téléphones.
+    const tactile = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+    const plafond = tactile ? 45 : 110;
+
     const redimensionner = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      largeur = window.innerWidth;
-      hauteur = window.innerHeight;
-      toile.width = largeur * dpr;
-      toile.height = hauteur * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const nombre = Math.round(Math.min(120, (largeur * hauteur) / 13000));
-      grains = Array.from({ length: nombre }, nouveau);
+      const l = window.innerWidth;
+      // Sur téléphone, la barre d'adresse qui apparaît / disparaît change la hauteur à chaque défilement :
+      // on ne redimensionne que si la largeur change ou si la fenêtre grandit.
+      const h = Math.max(window.innerHeight, hauteur);
+      if (l === largeur && h === hauteur) return;
+      const nouvelleLargeur = l !== largeur;
+      largeur = l;
+      hauteur = h;
+      toile.width = largeur;
+      toile.height = hauteur;
+      toile.style.width = `${largeur}px`;
+      toile.style.height = `${hauteur}px`;
+      if (nouvelleLargeur || grains.length === 0) {
+        const nombre = Math.round(Math.min(plafond, (largeur * hauteur) / 13000));
+        grains = Array.from({ length: nombre }, nouveau);
+      }
     };
 
     redimensionner();
-    window.addEventListener('resize', redimensionner);
-    window.addEventListener('pointermove', (e) => {
-      souris.x = e.clientX;
-      souris.y = e.clientY;
+    let attenteTaille = 0;
+    window.addEventListener('resize', () => {
+      cancelAnimationFrame(attenteTaille);
+      attenteTaille = requestAnimationFrame(redimensionner);
     });
+    window.addEventListener(
+      'pointermove',
+      (e) => {
+        souris.x = e.clientX;
+        souris.y = e.clientY;
+      },
+      { passive: true },
+    );
+
+    // Couleurs des grains : or pâle sur fond sombre, encre sépia sur le vélin du thème clair
+    let couleurs = { halo: '#ecd9a8', proche: '#f6e7c1', loin: '#d9bd85', force: 1 };
+    const lireTheme = () => {
+      couleurs =
+        racine.dataset.theme === 'clair'
+          ? { halo: '#a8823f', proche: '#7a5a26', loin: '#9c7a3e', force: 0.75 }
+          : { halo: '#ecd9a8', proche: '#f6e7c1', loin: '#d9bd85', force: 1 };
+    };
+    lireTheme();
+    window.addEventListener('changement-theme', lireTheme);
 
     let temps = 0;
     let dernierDefilement = window.scrollY;
     let elan = 0;
     let anim = 0;
+    let derniereImage = 0;
 
-    const dessiner = () => {
-      temps += 1;
+    const dessiner = (maintenant: number) => {
+      anim = requestAnimationFrame(dessiner);
+      // Rien à dessiner tant que le chargeur couvre la page
+      if (racine.classList.contains('chargement')) {
+        derniereImage = maintenant;
+        return;
+      }
+
+      // Pas de temps en « images à 60 Hz » : même vitesse sur tous les écrans
+      const pas = derniereImage ? Math.min(3, (maintenant - derniereImage) / 16.667) : 1;
+      derniereImage = maintenant;
+      temps += pas;
 
       // Le défilement souffle légèrement sur la poussière
       const delta = window.scrollY - dernierDefilement;
       dernierDefilement = window.scrollY;
-      elan += (delta - elan) * 0.08;
+      elan += (delta / pas - elan) * lisser(0.08, pas);
 
       // Parallaxe douce selon la position de la souris
       const cibleX = souris.x < -999 ? 0 : souris.x - largeur / 2;
       const cibleY = souris.y < -999 ? 0 : souris.y - hauteur / 2;
-      souris.px += (cibleX - souris.px) * 0.03;
-      souris.py += (cibleY - souris.py) * 0.03;
+      const k = lisser(0.03, pas);
+      souris.px += (cibleX - souris.px) * k;
+      souris.py += (cibleY - souris.py) * k;
 
       ctx.clearRect(0, 0, largeur, hauteur);
 
       for (const g of grains) {
-        g.x += g.vx + Math.sin(temps * 0.0025 + g.phase) * 0.035 * g.profondeur;
-        g.y += g.vy - elan * 0.06 * g.profondeur;
+        g.x += (g.vx + Math.sin(temps * 0.0025 + g.phase) * 0.035 * g.profondeur) * pas;
+        g.y += (g.vy - elan * 0.06 * g.profondeur) * pas;
 
         // Les grains s'écartent doucement du curseur
         const dx = g.x - souris.x;
         const dy = g.y - souris.y;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < 130 && d > 0.01) {
-          const force = (1 - d / 130) * 0.9 * (0.3 + g.profondeur);
+        const d2 = dx * dx + dy * dy;
+        if (d2 < 16900 && d2 > 0.0001) {
+          const d = Math.sqrt(d2);
+          const force = (1 - d / 130) * 0.9 * (0.3 + g.profondeur) * pas;
           g.x += (dx / d) * force;
           g.y += (dy / d) * force;
         }
@@ -120,21 +169,19 @@
 
         // Halo autour des grains les plus proches
         if (g.profondeur > 0.75) {
-          ctx.globalAlpha = g.alpha * scintille * 0.12;
-          ctx.fillStyle = '#ecd9a8';
+          ctx.globalAlpha = g.alpha * scintille * 0.12 * couleurs.force;
+          ctx.fillStyle = couleurs.halo;
           ctx.beginPath();
           ctx.arc(x, y, g.r * 4.5, 0, Math.PI * 2);
           ctx.fill();
         }
 
-        ctx.globalAlpha = g.alpha * scintille;
-        ctx.fillStyle = g.profondeur > 0.9 ? '#f6e7c1' : '#d9bd85';
+        ctx.globalAlpha = g.alpha * scintille * couleurs.force;
+        ctx.fillStyle = g.profondeur > 0.9 ? couleurs.proche : couleurs.loin;
         ctx.beginPath();
         ctx.arc(x, y, g.r, 0, Math.PI * 2);
         ctx.fill();
       }
-
-      anim = requestAnimationFrame(dessiner);
     };
 
     anim = requestAnimationFrame(dessiner);
@@ -142,6 +189,7 @@
     // Pause quand l'onglet n'est pas visible
     document.addEventListener('visibilitychange', () => {
       cancelAnimationFrame(anim);
+      derniereImage = 0;
       if (!document.hidden) anim = requestAnimationFrame(dessiner);
     });
   }
@@ -161,18 +209,48 @@
     let ax = x;
     let ay = y;
     let visible = false;
+    let enMouvement = false;
+    let derniereImage = 0;
 
-    window.addEventListener('pointermove', (e) => {
-      if (e.pointerType !== 'mouse') return;
-      x = e.clientX;
-      y = e.clientY;
-      if (!visible) {
-        visible = true;
+    // L'anneau rattrape le point ; la boucle s'arrête d'elle-même quand il l'a rejoint
+    const suivre = (maintenant: number) => {
+      const pas = derniereImage ? Math.min(3, (maintenant - derniereImage) / 16.667) : 1;
+      derniereImage = maintenant;
+      const k = lisser(0.16, pas);
+      ax += (x - ax) * k;
+      ay += (y - ay) * k;
+      const arrive = Math.abs(x - ax) < 0.15 && Math.abs(y - ay) < 0.15;
+      if (arrive) {
         ax = x;
         ay = y;
-        curseur.classList.add('visible');
       }
-    });
+      point.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      anneau.style.transform = `translate3d(${ax}px, ${ay}px, 0)`;
+      if (arrive) {
+        enMouvement = false;
+        derniereImage = 0;
+      } else requestAnimationFrame(suivre);
+    };
+
+    window.addEventListener(
+      'pointermove',
+      (e) => {
+        if (e.pointerType !== 'mouse') return;
+        x = e.clientX;
+        y = e.clientY;
+        if (!visible) {
+          visible = true;
+          ax = x;
+          ay = y;
+          curseur.classList.add('visible');
+        }
+        if (!enMouvement) {
+          enMouvement = true;
+          requestAnimationFrame(suivre);
+        }
+      },
+      { passive: true },
+    );
 
     document.documentElement.addEventListener('pointerleave', () => {
       visible = false;
@@ -194,15 +272,6 @@
 
     window.addEventListener('pointerdown', () => curseur.classList.add('appui'));
     window.addEventListener('pointerup', () => curseur.classList.remove('appui'));
-
-    const suivre = () => {
-      ax += (x - ax) * 0.16;
-      ay += (y - ay) * 0.16;
-      point.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-      anneau.style.transform = `translate3d(${ax}px, ${ay}px, 0)`;
-      requestAnimationFrame(suivre);
-    };
-    requestAnimationFrame(suivre);
   }
 </script>
 
@@ -219,17 +288,18 @@
 
   .poussiere {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
   }
 
+  /* Le dégradé radial est déjà fondu : pas besoin de flou ni de mode de fusion,
+     très coûteux à recalculer à chaque image au-dessus d'une page qui défile. */
   .halo {
     position: absolute;
     border-radius: 50%;
-    filter: blur(60px);
-    mix-blend-mode: screen;
-    opacity: 0.6;
+    opacity: 0.7;
     will-change: transform;
   }
 
@@ -277,9 +347,24 @@
     }
   }
 
+  :global(html[data-theme='clair']) .halo {
+    opacity: 0.35;
+  }
+
   /* ——— Curseur ——— */
   .curseur {
     display: none;
+  }
+
+  /* Une fenêtre (livre ouvert) passe au-dessus de tout, curseur doré compris :
+     on rend la main au curseur du système tant qu'elle est ouverte */
+  :global(html.curseur-actif:has(dialog[open])) .curseur {
+    visibility: hidden;
+  }
+
+  :global(html.curseur-actif dialog[open]),
+  :global(html.curseur-actif dialog[open] *) {
+    cursor: revert !important;
   }
 
   :global(html.curseur-actif) .curseur {
