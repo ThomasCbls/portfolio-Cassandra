@@ -5,20 +5,26 @@ import Frise from '../components/Frise.astro';
 import Carrousel from '../components/Carrousel.astro';
 import Icone from '../components/Icone.astro';
 import Monogramme from '../components/Monogramme.astro';
-import { profil, parcours, competences } from '../data/profil';
+import { profil, parcours, competences, outils } from '../data/profil';
 
+// Ordre : le champ `ordre` s'il existe, sinon du plus récent au plus ancien
+const anneeTri = (a: number | string | undefined) => Number(String(a ?? '').match(/\d{4}/g)?.pop() ?? 0);
 const travaux = (await getCollection('travaux')).sort(
-  (a, b) => b.data.annee - a.data.annee || b.data.debut - a.data.debut,
+  (a, b) =>
+    (a.data.ordre ?? 999) - (b.data.ordre ?? 999) || anneeTri(b.data.annee) - anneeTri(a.data.annee),
 );
 
-const elementsFrise = travaux.map((t) => ({
-  id: t.id,
-  titre: t.data.titre,
-  nature: t.data.nature,
-  debut: t.data.debut,
-  fin: t.data.fin,
-  enCours: t.data.enCours,
-}));
+// Frise « Siècles étudiés » : seulement les travaux dont la période est renseignée
+const elementsFrise = travaux
+  .filter((t) => t.data.debut !== undefined && t.data.fin !== undefined)
+  .map((t) => ({
+    id: t.id,
+    titre: t.data.titre,
+    nature: t.data.nature,
+    debut: t.data.debut as number,
+    fin: t.data.fin as number,
+    enCours: t.data.enCours,
+  }));
 
 // Initiales pour le médaillon, quand il n'y a pas de portrait
 const initiales = profil.nom
@@ -37,12 +43,39 @@ const enRomain = (n: number) => {
 };
 const annee = new Date().getFullYear();
 
+// Bibliothèque : dimensions des livres, variées pour un rayonnage naturel
+const hauteurs = [14, 12.4, 15.2, 13, 14.6, 12, 15.6, 13.4, 14.2, 12.8];
+const largeurs = [3.3, 2.8, 3.7, 3, 3.4, 2.9, 3.6, 3.1, 3.3, 2.9];
+
+// Date de la lettre (mise à jour dans le navigateur au jour de la visite)
+const dateLettre = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+// Sceau de cire : contour irrégulier calculé une fois pour toutes
+const contourSceau = (() => {
+  const variations = [0, 3, -2, 4, 1, -3, 2, 5, -1, 3, -2, 2, 4, -3, 1, 3, -1, 2];
+  const pts = variations.map((v, i) => {
+    const a = (i / variations.length) * Math.PI * 2;
+    const r = 52 + v;
+    return [60 + r * Math.cos(a), 60 + r * Math.sin(a)];
+  });
+  const milieu = (p: number[], q: number[]) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+  let d = '';
+  pts.forEach((p, i) => {
+    const q = pts[(i + 1) % pts.length];
+    const m = milieu(p, q);
+    if (i === 0) d += `M${milieu(pts[pts.length - 1], p).map((n) => n.toFixed(1)).join(' ')}`;
+    d += `Q${p[0].toFixed(1)} ${p[1].toFixed(1)} ${m[0].toFixed(1)} ${m[1].toFixed(1)}`;
+  });
+  return d + 'Z';
+})();
+
 // Repères de navigation sur le côté de l'écran
 const ecrans = [
   { id: 'accueil', nom: 'Introduction' },
   { id: 'chronologie', nom: 'Chronologie' },
   { id: 'travaux', nom: 'Travaux' },
   { id: 'competences', nom: 'Compétences' },
+  { id: 'bibliotheque', nom: 'Bibliothèque' },
   { id: 'contact', nom: 'Contact' },
 ];
 ---
@@ -69,7 +102,7 @@ const ecrans = [
     <div class="contenu ouverture-grille" data-reveal>
       <!-- Masqué tant que le médaillon n'a pas été ouvert (visible d'emblée sans JavaScript) -->
       <div class="ouverture-texte" id="intro-texte">
-        <p class="surtitre" style="--i: 0">Portfolio · Histoire</p>
+        <p class="surtitre" style="--i: 0"><span class="chapitre">Chapitre I</span> Portfolio</p>
         <p class="script-intro" aria-hidden="true" style="--i: 1"><span class="ecrit">Introduction</span></p>
         <h1 id="nom" tabindex="-1" style="--i: 2">{profil.nom}</h1>
         <div class="filet" style="--i: 3"></div>
@@ -140,7 +173,7 @@ const ecrans = [
   <section id="competences" class="ecran competences-ecran" aria-labelledby="titre-competences">
     <div class="contenu">
       <div class="competences-entete" data-reveal>
-        <p class="surtitre">Savoir-faire</p>
+        <p class="surtitre"><span class="chapitre">Chapitre IV</span> Savoir-faire</p>
         <h2 id="titre-competences" class="titre-section">Compétences</h2>
         <div class="filet filet-centre"></div>
       </div>
@@ -160,15 +193,71 @@ const ecrans = [
     </div>
   </section>
 
-  <!-- V. Contact -->
+  <!-- V. Bibliothèque -->
+  <section id="bibliotheque" class="ecran bibliotheque-ecran" aria-labelledby="titre-bibliotheque">
+    <div class="contenu">
+      <div class="bibliotheque-entete" data-reveal>
+        <p class="surtitre"><span class="chapitre">Chapitre V</span> Logiciels et outils</p>
+        <h2 id="titre-bibliotheque" class="titre-section">Bibliothèque</h2>
+        <div class="filet filet-centre"></div>
+      </div>
+      <div class="etagere" data-reveal>
+        <ul class="livres">
+          {
+            outils.map((o, i) => (
+              <li
+                class="livre"
+                data-teinte={o.teinte}
+                tabindex="0"
+                style={`--h: ${hauteurs[i % hauteurs.length]}rem; --l: ${largeurs[i % largeurs.length]}rem; --i: ${i}`}
+              >
+                <span class="livre-dos">
+                  <span class="livre-titre">{o.nom}</span>
+                </span>
+                <span class="livre-etiquette">{o.rayon}</span>
+              </li>
+            ))
+          }
+        </ul>
+        <div class="planche" aria-hidden="true"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VI. Contact : une lettre scellée -->
   <section id="contact" class="ecran contact" aria-labelledby="titre-contact">
     <div class="contenu" data-reveal>
-      <p class="surtitre">Correspondance</p>
+      <p class="surtitre"><span class="chapitre">Chapitre VI</span> Correspondance</p>
       <h2 id="titre-contact" class="titre-section">Écrivez-moi</h2>
-      <div class="filet filet-centre"></div>
-      <p class="courriel">
-        <a href={`mailto:${profil.email}`}>{profil.email}</a>
-      </p>
+
+      <div class="lettre">
+        <p class="lettre-date">{profil.ville}, le <time class="date-du-jour">{dateLettre}</time></p>
+        <p class="lettre-salutation">Madame, Monsieur,</p>
+        <p class="lettre-corps">
+          Je suis actuellement à la recherche d'un stage afin de réaliser mon mémoire professionnel. Pour toute
+          proposition, question ou simple échange, je serai ravie de vous lire.
+        </p>
+        <p class="lettre-courriel">
+          <a href={`mailto:${profil.email}`}>{profil.email}</a>
+        </p>
+        <p class="lettre-signature">{profil.nom}</p>
+
+        <svg class="sceau" viewBox="0 0 120 120" aria-hidden="true">
+          <defs>
+            <radialGradient id="cire" cx="0.42" cy="0.38" r="0.7">
+              <stop offset="0" stop-color="#c2412f"></stop>
+              <stop offset="0.55" stop-color="#8f2219"></stop>
+              <stop offset="1" stop-color="#5a110c"></stop>
+            </radialGradient>
+          </defs>
+          <path d={contourSceau} fill="url(#cire)"></path>
+          <circle cx="60" cy="60" r="37" fill="none" stroke="#5a110c" stroke-width="2.5" opacity="0.7"></circle>
+          <circle cx="60" cy="60" r="35" fill="none" stroke="#d9654f" stroke-width="0.8" opacity="0.45"></circle>
+          <text x="61" y="76" class="sceau-lettres sceau-ombre">{initiales}</text>
+          <text x="59.5" y="74.5" class="sceau-lettres">{initiales}</text>
+        </svg>
+      </div>
+
       <ul class="liens">
         <li><a class="bouton" href={profil.cv} download>CV (PDF)</a></li>
         {
@@ -194,6 +283,12 @@ const ecrans = [
       <span class="losange" aria-hidden="true"></span>
     </p>
   </section>
+
+  <script>
+    // La lettre est datée du jour de la visite
+    const date = document.querySelector('.date-du-jour');
+    if (date) date.textContent = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  </script>
 </Base>
 
 <script>
@@ -276,24 +371,128 @@ const ecrans = [
 </script>
 
 <script>
-  // Le repère latéral suit l'écran affiché
-  const liens = document.querySelectorAll<HTMLAnchorElement>('.reperes a');
-  const observateur = new IntersectionObserver(
-    (entrees) => {
-      for (const e of entrees) {
-        if (!e.isIntersecting) continue;
-        liens.forEach((l) => {
-          if (l.dataset.ecran === e.target.id) l.setAttribute('aria-current', 'true');
-          else l.removeAttribute('aria-current');
-        });
+  // ——— Pages empilées et repère latéral ———
+  // À chaque défilement : --recouvre de chaque écran (part recouverte par le suivant),
+  // écran courant pour le repère, et réinitialisation des animations d'un écran entièrement recouvert.
+  const ecrans = [...document.querySelectorAll<HTMLElement>('main > .ecran')];
+  const liensReperes = document.querySelectorAll<HTMLAnchorElement>('.reperes a');
+  const moinsDeMouvement = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!moinsDeMouvement && ecrans.length > 1) document.documentElement.classList.add('empilement');
+
+  // Un écran plus haut que la fenêtre se colle par le bas : tout son contenu reste lisible
+  const ajusterCollage = () => {
+    for (const e of ecrans) e.style.top = `${Math.min(0, window.innerHeight - e.offsetHeight)}px`;
+  };
+
+  let enAttente = false;
+  const mettreAJour = () => {
+    enAttente = false;
+    const h = window.innerHeight;
+    let courant = ecrans[0];
+
+    ecrans.forEach((ecran, i) => {
+      if (ecran.getBoundingClientRect().top <= h * 0.5) courant = ecran;
+
+      const suivant = ecrans[i + 1];
+      const part = suivant ? Math.min(1, Math.max(0, 1 - suivant.getBoundingClientRect().top / h)) : 0;
+      ecran.style.setProperty('--recouvre', part.toFixed(3));
+
+      // Entièrement recouvert : ses animations se réinitialisent (elles se rejoueront au retour)
+      const recouvert = part >= 0.999;
+      if (recouvert !== ecran.classList.contains('recouverte')) {
+        ecran.classList.toggle('recouverte', recouvert);
+        ecran.querySelectorAll('[data-reveal]').forEach((el) => el.classList.toggle('revele', !recouvert));
       }
-    },
-    { rootMargin: '-45% 0px -45% 0px' },
-  );
-  liens.forEach((l) => {
-    const cible = document.getElementById(l.dataset.ecran ?? '');
-    if (cible) observateur.observe(cible);
+    });
+
+    liensReperes.forEach((l) => {
+      if (l.dataset.ecran === courant?.id) l.setAttribute('aria-current', 'true');
+      else l.removeAttribute('aria-current');
+    });
+  };
+
+  const demander = () => {
+    if (enAttente) return;
+    enAttente = true;
+    requestAnimationFrame(mettreAJour);
+  };
+
+  ajusterCollage();
+  mettreAJour();
+  window.addEventListener('scroll', demander, { passive: true });
+  window.addEventListener('resize', () => {
+    ajusterCollage();
+    demander();
   });
+  // La hauteur des écrans change quand on ouvre l'introduction ou qu'on change d'onglet de frise
+  if ('ResizeObserver' in window) {
+    const surveillance = new ResizeObserver(() => {
+      ajusterCollage();
+      demander();
+    });
+    ecrans.forEach((e) => surveillance.observe(e));
+  }
+
+  // ——— Aimantation : une page s'affiche toujours en entier ———
+  // Quand le défilement s'arrête entre deux pages, on termine le mouvement en douceur
+  // vers la page la plus proche, dans le sens du défilement. Les pages plus hautes que
+  // la fenêtre peuvent être lues librement d'un bout à l'autre.
+  if (document.documentElement.classList.contains('empilement')) {
+    let dernierY = window.scrollY;
+    let sens = 0;
+    let doigtPose = false;
+    let attenteAimant = 0;
+
+    // Positions « au repos » de chaque page dans le flux (les pages collées ne bougent pas)
+    const plages = () => {
+      const h = window.innerHeight;
+      let y = ecrans[0].parentElement ? ecrans[0].parentElement.getBoundingClientRect().top + window.scrollY : 0;
+      return ecrans.map((e) => {
+        const debut = y;
+        y += e.offsetHeight;
+        return { debut, fin: debut + Math.max(0, e.offsetHeight - h) };
+      });
+    };
+
+    const aimanter = () => {
+      if (doigtPose) return;
+      const y = window.scrollY;
+      const liste = plages();
+      // Déjà sur une position de lecture : rien à faire
+      if (liste.some((p) => y >= p.debut - 2 && y <= p.fin + 2)) return;
+      // Entre la fin d'une page et le début de la suivante
+      const i = liste.findIndex((p, k) => k < liste.length - 1 && y > p.fin && y < liste[k + 1].debut);
+      if (i < 0) return;
+      const avant = liste[i].fin;
+      const apres = liste[i + 1].debut;
+      const progression = (y - avant) / (apres - avant);
+      // Un petit élan suffit à passer à la page suivante (ou à revenir)
+      const cible = sens > 0 ? (progression > 0.12 ? apres : avant) : sens < 0 ? (progression < 0.88 ? avant : apres) : progression > 0.5 ? apres : avant;
+      window.scrollTo({ top: cible, behavior: 'smooth' });
+    };
+
+    const programmer = () => {
+      window.clearTimeout(attenteAimant);
+      attenteAimant = window.setTimeout(aimanter, 140);
+    };
+
+    window.addEventListener(
+      'scroll',
+      () => {
+        const y = window.scrollY;
+        if (y !== dernierY) sens = y > dernierY ? 1 : -1;
+        dernierY = y;
+        programmer();
+      },
+      { passive: true },
+    );
+    window.addEventListener('touchstart', () => (doigtPose = true), { passive: true });
+    window.addEventListener('touchend', () => {
+      doigtPose = false;
+      programmer();
+    });
+  }
 </script>
 
 <style>
@@ -888,42 +1087,308 @@ const ecrans = [
     }
   }
 
-  /* ——— Contact ——— */
+  /* ——— Bibliothèque : les outils comme des livres sur une étagère ——— */
+  .bibliotheque-entete {
+    text-align: center;
+  }
+
+  .bibliotheque-entete .titre-section {
+    margin-inline: auto;
+  }
+
+  .bibliotheque-entete .filet {
+    max-width: 24rem;
+    margin-inline: auto;
+  }
+
+  .etagere {
+    position: relative;
+    max-width: 52rem;
+    margin: clamp(1.5rem, 5vh, 3rem) auto 0;
+  }
+
+  .livres {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 0.3rem;
+    min-height: 17rem;
+    margin: 0;
+    padding: 0 1.5rem;
+    list-style: none;
+  }
+
+  .livre {
+    --teinte: #4a3324;
+    position: relative;
+    flex: none;
+    width: var(--l);
+    height: var(--h);
+    outline: none;
+    transition:
+      transform 450ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      filter 300ms ease;
+  }
+
+  .livre[data-teinte='bordeaux'] {
+    --teinte: #5c1a1b;
+  }
+
+  .livre[data-teinte='vert'] {
+    --teinte: #1f3a2b;
+  }
+
+  .livre[data-teinte='bleu'] {
+    --teinte: #1d2a45;
+  }
+
+  .livre[data-teinte='cuir'] {
+    --teinte: #6a4322;
+  }
+
+  .livre[data-teinte='brun'] {
+    --teinte: #45301f;
+  }
+
+  /* Dos du livre : cuir arrondi, nervures dorées en haut et en bas */
+  .livre-dos {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 3px 3px 1px 1px;
+    background:
+      linear-gradient(90deg, rgba(0, 0, 0, 0.5), transparent 16%, rgba(255, 240, 210, 0.1) 42%, transparent 62%, rgba(0, 0, 0, 0.55)),
+      var(--teinte);
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+      0 10px 18px -8px rgba(0, 0, 0, 0.9);
+  }
+
+  .livre-dos::before,
+  .livre-dos::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 0.55rem;
+    border-top: 1px solid rgba(201, 169, 110, 0.75);
+    border-bottom: 1px solid rgba(201, 169, 110, 0.75);
+  }
+
+  .livre-dos::before {
+    top: 0.9rem;
+  }
+
+  .livre-dos::after {
+    bottom: 0.9rem;
+  }
+
+  .livre-titre {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    max-height: calc(var(--h) - 3.5rem);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: var(--f-affiche);
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+    color: var(--or-clair);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  }
+
+  /* Étiquette du rayon, au-dessus du livre tiré */
+  .livre-etiquette {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 0.8rem);
+    z-index: 2;
+    translate: -50% 0.4rem;
+    padding: 0.35rem 0.7rem;
+    white-space: nowrap;
+    font-size: 0.68rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--or-clair);
+    background: #1b1610;
+    border: 1px solid rgba(201, 169, 110, 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity 250ms ease,
+      translate 250ms ease;
+  }
+
+  .livre:is(:hover, :focus-visible) {
+    z-index: 2;
+    transform: translateY(-1.1rem) rotate(-2.5deg);
+    filter: brightness(1.2);
+  }
+
+  .livre:is(:hover, :focus-visible) .livre-etiquette {
+    opacity: 1;
+    translate: -50% 0;
+  }
+
+  .livre:focus-visible .livre-dos {
+    outline: 1px solid var(--or-clair);
+    outline-offset: 3px;
+  }
+
+  /* Planche de bois au liseré doré */
+  .planche {
+    height: 1.1rem;
+    border-top: 1px solid rgba(201, 169, 110, 0.7);
+    border-radius: 0 0 3px 3px;
+    background: linear-gradient(180deg, #5a3b21, #2e1d10 70%, #1c120a);
+    box-shadow: 0 22px 34px -12px rgba(0, 0, 0, 0.95);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .etagere:not(.revele) .livre {
+      opacity: 0;
+    }
+
+    :global(.js) .etagere.revele .livre {
+      animation: ranger 800ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+      animation-delay: calc(250ms + var(--i) * 80ms);
+    }
+
+    @keyframes ranger {
+      from {
+        opacity: 0;
+        transform: translateY(-2.5rem) rotate(4deg);
+      }
+    }
+  }
+
+  /* ——— Contact : une lettre sur papier ancien, fermée d'un sceau ——— */
   .contact {
     text-align: center;
   }
 
   .contact .titre-section {
-    font-size: clamp(3.5rem, 11vw, 8rem);
+    margin: 0.2rem auto 0;
   }
 
-  .contact .filet {
-    max-width: 24rem;
-    margin-inline: auto;
+  .lettre {
+    position: relative;
+    max-width: 35rem;
+    margin: clamp(1rem, 3vh, 1.75rem) auto 0;
+    padding: clamp(1.5rem, 4vh, 2.5rem) clamp(1.5rem, 4vw, 3rem) clamp(1.75rem, 4vh, 2.5rem);
+    text-align: left;
+    color: #2b2117;
+    background: radial-gradient(120% 90% at 30% 20%, #f4e9d0 0%, #e9dab7 55%, #d6c194 100%);
+    border-radius: 2px;
+    rotate: -1.2deg;
+    box-shadow:
+      inset 0 0 70px rgba(120, 80, 30, 0.35),
+      inset 0 0 0 1px rgba(90, 60, 20, 0.15),
+      0 30px 60px -18px rgba(0, 0, 0, 0.95);
   }
 
-  .courriel {
-    font-family: var(--f-titre);
+  /* Fibres du papier */
+  .lettre::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0.35;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.32 0 0 0 0 0.15 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .lettre > :not(.sceau) {
+    position: relative;
+  }
+
+  .lettre-date {
+    text-align: right;
+    font-family: var(--f-script);
+    font-size: 1.45rem;
+    line-height: 1.2;
+    color: #4a3622;
+  }
+
+  .lettre-salutation {
+    margin-top: 0.6rem;
+    font-family: var(--f-script);
+    font-size: 1.65rem;
+    line-height: 1.2;
+  }
+
+  .lettre-corps {
+    margin-top: 0.6rem;
     font-style: italic;
-    font-size: clamp(1.5rem, 5vw, 3.25rem);
+    font-size: 1.1rem;
+    line-height: 1.55;
+    color: #3a2c1e;
+  }
+
+  .lettre-courriel {
+    margin-top: 1rem;
+    text-align: center;
     overflow-wrap: anywhere;
   }
 
-  .courriel a {
-    color: var(--ivoire);
+  .lettre-courriel a {
+    font-family: var(--f-affiche);
+    font-size: clamp(1.15rem, 3vw, 1.75rem);
+    color: #2b2117;
     text-decoration: none;
-    background: linear-gradient(var(--or), var(--or)) left bottom / 0 1px no-repeat;
-    transition: background-size 400ms ease;
+    background: linear-gradient(#8f2219, #8f2219) left bottom / 100% 1px no-repeat;
+    transition:
+      color 250ms ease,
+      background-size 300ms ease;
   }
 
-  .courriel a:hover {
-    background-size: 100% 1px;
+  .lettre-courriel a:hover {
+    color: #8f2219;
+    background-size: 100% 2px;
+  }
+
+  .lettre-courriel a:focus-visible {
+    outline-color: #8f2219;
+  }
+
+  .lettre-signature {
+    margin-top: 0.9rem;
+    padding-right: 4.5rem;
+    text-align: right;
+    font-family: var(--f-script);
+    font-size: 2rem;
+    line-height: 1.1;
+    color: #3a2a1a;
+  }
+
+  /* Sceau de cire rouge à tes initiales */
+  .sceau {
+    position: absolute;
+    right: -1.6rem;
+    bottom: -1.9rem;
+    width: 6.75rem;
+    rotate: 8deg;
+    filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.55));
+  }
+
+  .sceau-lettres {
+    font-family: var(--f-script);
+    font-size: 46px;
+    text-anchor: middle;
+    fill: #a3301f;
+  }
+
+  .sceau-ombre {
+    fill: #4a0d08;
+    opacity: 0.8;
   }
 
   .liens {
     list-style: none;
     padding: 0;
-    margin: 2.25rem 0 0;
+    margin: clamp(2rem, 5vh, 3rem) 0 0;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
@@ -934,7 +1399,7 @@ const ecrans = [
     position: absolute;
     left: 0;
     right: 0;
-    bottom: clamp(1.5rem, 4vh, 2.5rem);
+    bottom: clamp(1.25rem, 3vh, 2rem);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -950,6 +1415,73 @@ const ecrans = [
     height: 5px;
     background: var(--or);
     transform: rotate(45deg);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* Le sceau est apposé une fois la lettre à l'écran */
+    :global(.js) .contact .contenu:not(.revele) .sceau {
+      opacity: 0;
+    }
+
+    :global(.js) .contact .contenu.revele .sceau {
+      animation: apposer 900ms cubic-bezier(0.3, 1.35, 0.5, 1) 1100ms backwards;
+    }
+
+    @keyframes apposer {
+      0% {
+        opacity: 0;
+        transform: scale(2.3) rotate(-28deg);
+        filter: drop-shadow(0 40px 30px rgba(0, 0, 0, 0.4));
+      }
+      65% {
+        opacity: 1;
+        transform: scale(0.9) rotate(3deg);
+      }
+      100% {
+        transform: none;
+      }
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .livres {
+      flex-wrap: wrap;
+      row-gap: 2.2rem;
+      min-height: 0;
+      padding: 0;
+    }
+
+    .livre {
+      height: calc(var(--h) * 0.72);
+      width: calc(var(--l) * 0.85);
+    }
+
+    /* Sur téléphone, chaque rangée a sa planche */
+    .livre::after {
+      content: '';
+      position: absolute;
+      left: -0.2rem;
+      right: -0.2rem;
+      bottom: -0.65rem;
+      height: 0.65rem;
+      border-top: 1px solid rgba(201, 169, 110, 0.6);
+      background: linear-gradient(180deg, #5a3b21, #2e1d10);
+    }
+
+    .planche {
+      display: none;
+    }
+
+    .sceau {
+      width: 5rem;
+      right: -0.6rem;
+      bottom: -1.6rem;
+    }
+
+    .lettre-signature {
+      padding-right: 3.5rem;
+      font-size: 1.7rem;
+    }
   }
 
   /* ——— Petits écrans ——— */

@@ -20,15 +20,25 @@ const d = travail.data;
     <article class="fiche" data-reveal>
       <header>
         <p class="surtitre">{d.nature}</p>
-        <p class="periode">{d.debut}–{d.fin}</p>
+        {d.debut !== undefined && d.fin !== undefined && <p class="periode">{d.debut}–{d.fin}</p>}
         <h1>{d.titre}</h1>
         {d.sousTitre && <p class="sous-titre">{d.sousTitre}</p>}
         <div class="filet"></div>
+        {
+          d.gravure && (
+            <figure class="fiche-gravure" aria-hidden={d.credit ? undefined : 'true'}>
+              <span class="fiche-ovale">
+                <img src={d.gravure} alt="" />
+              </span>
+              {d.credit && <figcaption>{d.credit}</figcaption>}
+            </figure>
+          )
+        }
       </header>
 
       <div class="corps">
         <div class="texte">
-          <p class="resume">{d.resume}</p>
+          <p class="resume lettrine">{d.resume}</p>
           <div class="prose">
             <Content />
           </div>
@@ -53,16 +63,24 @@ const d = travail.data;
                 {d.enCours && <span class="badge">en cours</span>}
               </dd>
             </div>
-            <div>
-              <dt>Année</dt>
-              <dd>{d.annee}</dd>
-            </div>
-            <div>
-              <dt>Période étudiée</dt>
-              <dd>
-                {d.debut}–{d.fin}
-              </dd>
-            </div>
+            {
+              d.annee && (
+                <div>
+                  <dt>Année</dt>
+                  <dd>{d.annee}</dd>
+                </div>
+              )
+            }
+            {
+              d.debut !== undefined && d.fin !== undefined && (
+                <div>
+                  <dt>Période étudiée</dt>
+                  <dd>
+                    {d.debut}–{d.fin}
+                  </dd>
+                </div>
+              )
+            }
             {
               d.direction && (
                 <div>
@@ -96,9 +114,123 @@ const d = travail.data;
   </div>
 </Base>
 
+<script>
+  // Notes de bas de page : libellés en français et bulle qui affiche la note au survol de l'appel
+  const notes = document.querySelector<HTMLElement>('.prose .footnotes');
+  if (notes) {
+    const titre = notes.querySelector('h2');
+    if (titre) {
+      titre.textContent = 'Notes';
+      titre.classList.remove('sr-only');
+    }
+    notes.querySelectorAll<HTMLAnchorElement>('[data-footnote-backref]').forEach((a, i) => {
+      a.setAttribute('aria-label', `Retour à l'appel de note ${i + 1}`);
+    });
+
+    const bulle = document.createElement('div');
+    bulle.className = 'bulle-note';
+    bulle.setAttribute('aria-hidden', 'true');
+    document.body.append(bulle);
+
+    const montrer = (appel: HTMLAnchorElement) => {
+      const note = document.getElementById(decodeURIComponent(appel.hash.slice(1)));
+      if (!note) return;
+      const copie = note.cloneNode(true) as HTMLElement;
+      copie.querySelectorAll('[data-footnote-backref]').forEach((r) => r.remove());
+      bulle.innerHTML = copie.innerHTML;
+      const r = appel.getBoundingClientRect();
+      const largeur = Math.min(352, window.innerWidth * 0.86);
+      const gauche = Math.min(Math.max(12, r.left + window.scrollX - largeur / 2), window.scrollX + window.innerWidth - largeur - 12);
+      bulle.style.left = `${gauche}px`;
+      bulle.style.top = `${r.bottom + window.scrollY + 10}px`;
+      bulle.classList.add('visible');
+    };
+    const cacher = () => bulle.classList.remove('visible');
+
+    document.querySelectorAll<HTMLAnchorElement>('.prose a[data-footnote-ref]').forEach((appel) => {
+      appel.addEventListener('pointerenter', () => montrer(appel));
+      appel.addEventListener('focus', () => montrer(appel));
+      appel.addEventListener('pointerleave', cacher);
+      appel.addEventListener('blur', cacher);
+    });
+  }
+</script>
+
 <style>
   .fiche-ecran {
     justify-content: flex-start;
+  }
+
+  /* En-tête en deux colonnes : texte à gauche, gravure à droite */
+  header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) min(28%, 13rem);
+    column-gap: clamp(2rem, 5vw, 4rem);
+    align-items: start;
+  }
+
+  header > :not(.fiche-gravure) {
+    grid-column: 1;
+  }
+
+  /* Gravure en tête de fiche, encadrée comme un portrait ancien */
+  .fiche-gravure {
+    grid-column: 2;
+    grid-row: 1 / span 6;
+    width: 100%;
+    margin: 0;
+  }
+
+  .fiche-ovale {
+    position: relative;
+    display: block;
+    aspect-ratio: 3 / 4;
+    border-radius: 50%;
+    padding: 0.5rem;
+    border: 1px solid var(--or);
+    box-shadow:
+      0 0 0 5px var(--carte),
+      0 0 0 6px var(--filet),
+      0 30px 50px -20px rgba(0, 0, 0, 0.9);
+  }
+
+  .fiche-ovale img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    filter: sepia(0.85) saturate(0.75) contrast(1.08) brightness(0.88);
+  }
+
+  .fiche-ovale::after {
+    content: '';
+    position: absolute;
+    inset: 0.5rem;
+    border-radius: 50%;
+    background: radial-gradient(70% 70% at 50% 40%, transparent 45%, rgba(13, 11, 8, 0.7) 100%);
+  }
+
+  .fiche-gravure figcaption {
+    margin-top: 1rem;
+    text-align: center;
+    font-size: 0.68rem;
+    font-style: italic;
+    line-height: 1.4;
+    color: rgba(169, 156, 131, 0.8);
+  }
+
+  @media (max-width: 52rem) {
+    header {
+      grid-template-columns: 1fr;
+    }
+
+    .fiche-gravure {
+      grid-column: 1;
+      grid-row: auto;
+      width: min(55%, 12rem);
+      margin: 2rem 0 0;
+    }
   }
 
   .retour {

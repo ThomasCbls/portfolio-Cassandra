@@ -5,7 +5,7 @@ export const profil = {
   nom: 'Cassandra Levêque',
   statut: "Étudiante en master Humanités Numériques",
   presentation:
-    "Je travaille sur le travail des femmes et les usages de l'eau dans la ville, du XVIIᵉ au début du XXᵉ siècle. Mes recherches partent des archives municipales, notariales et hospitalières lyonnaises.",
+    "Formée à l'histoire et au patrimoine à l'Université du Mans, j'entre en master Humanités numériques au CESR de Tours. Médiation culturelle, numérisation et valorisation des sources : je cherche à rendre le patrimoine accessible. Je recherche actuellement un stage pour réaliser mon mémoire professionnel.",
   email: 'levequecassandra83@gmail.com',
   ville: 'Tours',
   // Inscription qui fait le tour du médaillon d'accueil
@@ -50,6 +50,26 @@ export const parcours = [
     titre: 'BTS Communication en alternance',
     lieu: 'ECOFAC au Mans',
   },
+  {
+    dates: '2020–2022',
+    titre: 'Baccalauréat STMG, spécialité Marketing',
+    lieu: 'Lycée Robert Garnier, La Ferté-Bernard',
+  },
+];
+
+// Bibliothèque : logiciels et outils, affichés comme des livres sur une étagère.
+// `rayon` regroupe les livres ; `teinte` donne la couleur du dos (cuir, bordeaux, vert, bleu, brun).
+export const outils = [
+  { nom: 'MySQL', rayon: 'Données', teinte: 'bleu' },
+  { nom: 'QGIS', rayon: 'Cartographie', teinte: 'vert' },
+  { nom: 'Oxygen XML', rayon: 'Encodage TEI', teinte: 'bordeaux' },
+  { nom: 'VS Code', rayon: 'Code', teinte: 'bleu' },
+  { nom: 'GitHub', rayon: 'Versions', teinte: 'cuir' },
+  { nom: 'Suite Office', rayon: 'Bureautique', teinte: 'brun' },
+  { nom: 'Notion', rayon: 'Organisation', teinte: 'cuir' },
+  { nom: 'Canva', rayon: 'Graphisme', teinte: 'bordeaux' },
+  { nom: 'Figma', rayon: 'Maquettes', teinte: 'vert' },
+  { nom: 'Genially', rayon: 'Médiation interactive', teinte: 'brun' },
 ];
 
 // Compétences : l'icône est un des noms suivants :

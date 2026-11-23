@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800">
+  <defs>
+    <radialGradient id="papier" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0" stop-color="#efe2c4"/>
+      <stop offset="0.65" stop-color="#dcc79c"/>
+      <stop offset="1" stop-color="#b89a68"/>
+    </radialGradient>
+    <radialGradient id="lueur" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff3d2" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#fff3d2" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="hachures" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(40)">
+      <line x1="0" y1="0" x2="0" y2="7" stroke="#3a2a1a" stroke-width="1.1" stroke-opacity="0.55"/>
+    </pattern>
+    <pattern id="hachures-fines" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-35)">
+      <line x1="0" y1="0" x2="0" y2="5" stroke="#3a2a1a" stroke-width="0.8" stroke-opacity="0.4"/>
+    </pattern>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 0.3 0 0 0 0 0.2 0 0 0 0 0.1 0 0 0 0.18 0"/></filter>
+  </defs>
+
+  <rect width="600" height="800" fill="url(#papier)"/>
+  <rect width="600" height="800" filter="url(#grain)"/>
+
+  <!-- Bougie et sa lueur -->
+  <circle cx="150" cy="330" r="120" fill="url(#lueur)"/>
+  <g fill="none" stroke="#3a2a1a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M150 300C139 316 139 328 150 336C161 328 161 316 150 300Z" fill="#f6e3b0"/>
+    <path d="M150 336V346"/>
+    <path d="M134 348H166V470H134Z" fill="#efe0bd"/>
+    <path d="M156 348V470" />
+    <path d="M118 470H182L176 484H124Z" fill="#cdb589"/>
+  </g>
+  <path d="M157 350H166V470H157Z" fill="url(#hachures)"/>
+
+  <!-- Ombre portée du livre -->
+  <ellipse cx="300" cy="652" rx="230" ry="22" fill="url(#hachures)"/>
+
+  <!-- Livre ouvert -->
+  <g fill="none" stroke="#3a2a1a" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M110 612L98 626C160 611 250 616 300 650C350 616 440 611 502 626L490 612" fill="#c9b083"/>
+    <path d="M300 470C250 440 160 435 110 450V612C160 597 250 602 300 634Z" fill="#f2e6c9"/>
+    <path d="M300 470C350 440 440 435 490 450V612C440 597 350 602 300 634Z" fill="#f2e6c9"/>
+    <path d="M300 470V634"/>
+  </g>
+  <path d="M300 470C350 440 440 435 490 450V470C440 458 352 462 300 492Z" fill="url(#hachures-fines)"/>
+  <path d="M300 600C350 585 440 582 490 590V612C440 597 350 602 300 634Z" fill="url(#hachures-fines)"/>
+  <g fill="none" stroke="#3a2a1a" stroke-width="1.2" stroke-opacity="0.65" stroke-linecap="round">
+    <path d="M128 488C175 479 235 481 284 494"/>
+    <path d="M472 488C425 479 365 481 316 494"/>
+    <path d="M128 503C175 494 235 496 284 509"/>
+    <path d="M472 503C425 494 365 496 316 509"/>
+    <path d="M128 518C175 509 235 511 284 524"/>
+    <path d="M472 518C425 509 365 511 316 524"/>
+    <path d="M128 533C175 524 235 526 284 539"/>
+    <path d="M472 533C425 524 365 526 316 539"/>
+    <path d="M128 548C175 539 235 541 284 554"/>
+    <path d="M472 548C425 539 365 541 316 554"/>
+    <path d="M128 563C175 554 235 556 284 569"/>
+    <path d="M472 563C425 554 365 556 316 569"/>
+    <path d="M128 578C175 569 235 571 284 584"/>
+    <path d="M472 578C425 569 365 571 316 584"/>
+    <path d="M128 593C175 584 235 586 284 599"/>
+    <path d="M472 593C425 584 365 586 316 599"/>
+  </g>
+
+  <!-- Encrier -->
+  <g fill="none" stroke="#3a2a1a" stroke-width="2.2" stroke-linejoin="round">
+    <path d="M452 706H528V668C528 652 512 646 502 646H478C468 646 452 652 452 668Z" fill="#5a4630"/>
+    <path d="M476 646V632H504V646" fill="#5a4630"/>
+  </g>
+  <path d="M454 670H526V704H454Z" fill="url(#hachures)"/>
+
+  <!-- Plume d'oie -->
+  <g fill="none" stroke="#3a2a1a" stroke-linecap="round">
+    <path d="M490 632C470 520 430 380 384 250" stroke-width="2.2"/>
+    <path d="M384 250C430 300 470 420 482 560" stroke-width="1.8" fill="#f4ead2"/>
+    <path d="M384 250C360 330 392 470 470 584" stroke-width="1.8" fill="#f4ead2"/>
+    <g stroke-width="0.9" stroke-opacity="0.6"><path d="M384.0 262.0l-18.0 26.0"/><path d="M384.0 262.0l22.0 20.0"/><path d="M390.1 282.0l-17.6 25.7"/><path d="M390.1 282.0l21.5 19.6"/><path d="M396.3 302.0l-17.2 25.5"/><path d="M396.3 302.0l20.9 19.2"/><path d="M402.4 322.0l-16.8 25.2"/><path d="M402.4 322.0l20.4 18.8"/><path d="M408.5 342.0l-16.4 24.9"/><path d="M408.5 342.0l19.9 18.4"/><path d="M414.7 362.0l-16.0 24.7"/><path d="M414.7 362.0l19.3 18.0"/><path d="M420.8 382.0l-15.6 24.4"/><path d="M420.8 382.0l18.8 17.6"/><path d="M426.9 402.0l-15.2 24.1"/><path d="M426.9 402.0l18.3 17.2"/><path d="M433.1 422.0l-14.8 23.9"/><path d="M433.1 422.0l17.7 16.8"/><path d="M439.2 442.0l-14.4 23.6"/><path d="M439.2 442.0l17.2 16.4"/><path d="M445.3 462.0l-14.0 23.3"/><path d="M445.3 462.0l16.7 16.0"/><path d="M451.5 482.0l-13.6 23.1"/><path d="M451.5 482.0l16.1 15.6"/><path d="M457.6 502.0l-13.2 22.8"/><path d="M457.6 502.0l15.6 15.2"/><path d="M463.7 522.0l-12.8 22.5"/><path d="M463.7 522.0l15.1 14.8"/><path d="M469.9 542.0l-12.4 22.3"/><path d="M469.9 542.0l14.5 14.4"/><path d="M476.0 562.0l-12.0 22.0"/><path d="M476.0 562.0l14.0 14.0"/></g>
+  </g>
+
+  <!-- Filet d'encadrement -->
+  <rect x="24" y="24" width="552" height="752" fill="none" stroke="#3a2a1a" stroke-width="1.5" stroke-opacity="0.5"/>
+  <rect x="34" y="34" width="532" height="732" fill="none" stroke="#3a2a1a" stroke-width="0.8" stroke-opacity="0.35"/>
+</svg>
