@@ -1,0 +1,890 @@
+---
+// Carte ancienne des lieux du parcours et des travaux, gravée à l'encre sur un parchemin :
+// rivières, anciennes provinces, villes repères, forêts, rose des vents, cartouche et échelle.
+// Les lieux viennent des champs `commune` (parcours dans profil.ts, travaux dans leurs fichiers)
+// et leurs coordonnées de `communes` (profil.ts). Tout est calculé ici, à la construction du site.
+import { communes } from '../data/profil';
+import type { Travail } from '../data/travaux';
+import { lien, localiser, t, type Langue } from '../i18n';
+
+interface Etape {
+  dates: string;
+  datesSource?: string;
+  titre: string;
+  lieu: string;
+  commune?: string;
+}
+
+interface Props {
+  lang: Langue;
+  parcours: Etape[];
+  travaux: Travail[];
+}
+
+const { lang, parcours, travaux } = Astro.props;
+const tx = t(lang).carte;
+const chapitre = t(lang).chapitre;
+
+// ——— Projection : équirectangulaire, corrigée à la latitude moyenne ———
+const lonMin = -0.35;
+const lonMax = 1.75;
+const latMin = 47.1;
+const latMax = 48.45;
+const cosLat = Math.cos((((latMin + latMax) / 2) * Math.PI) / 180);
+const L = 1000;
+const k = L / ((lonMax - lonMin) * cosLat);
+const H = Math.round((latMax - latMin) * k);
+const xy = (lon: number, lat: number): [number, number] => [(lon - lonMin) * cosLat * k, (latMax - lat) * k];
+const f = (n: number) => n.toFixed(1);
+
+// Courbe lisse passant par tous les points (Catmull-Rom → Bézier)
+const courbe = (points: [number, number][]) => {
+  const p = points.map(([lon, lat]) => xy(lon, lat));
+  let d = `M${f(p[0][0])} ${f(p[0][1])}`;
+  for (let i = 0; i < p.length - 1; i++) {
+    const p0 = p[i - 1] ?? p[i];
+    const p1 = p[i];
+    const p2 = p[i + 1];
+    const p3 = p[i + 2] ?? p2;
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += `C${f(c1[0])} ${f(c1[1])} ${f(c2[0])} ${f(c2[1])} ${f(p2[0])} ${f(p2[1])}`;
+  }
+  return d;
+};
+
+// ——— Rivières (tracé simplifié, de l'amont vers l'aval sauf mention) ———
+const rivieres = [
+  {
+    id: 'loire',
+    nom: 'La Loire',
+    taille: 1.9,
+    etiquette: 58,
+    points: [[1.75, 47.82], [1.6, 47.73], [1.5, 47.67], [1.33, 47.59], [1.2, 47.53], [1.1, 47.47], [0.98, 47.41], [0.83, 47.41], [0.69, 47.4], [0.55, 47.37], [0.41, 47.33], [0.33, 47.28], [0.2, 47.25], [0.06, 47.215], [-0.08, 47.26], [-0.22, 47.35], [-0.35, 47.37]],
+  },
+  {
+    id: 'cher',
+    nom: 'Le Cher',
+    taille: 1.3,
+    etiquette: 30,
+    points: [[1.75, 47.22], [1.5, 47.25], [1.37, 47.27], [1.31, 47.32], [1.18, 47.34], [1.08, 47.33], [0.99, 47.33], [0.85, 47.34], [0.7, 47.375], [0.6, 47.36], [0.47, 47.34]],
+  },
+  {
+    id: 'loir',
+    nom: 'Le Loir',
+    taille: 1.3,
+    etiquette: 42,
+    points: [[1.25, 48.33], [1.38, 48.18], [1.33, 48.07], [1.23, 47.99], [1.07, 47.79], [0.86, 47.75], [0.58, 47.73], [0.42, 47.69], [0.16, 47.65], [-0.08, 47.7], [-0.24, 47.67], [-0.35, 47.62]],
+  },
+  {
+    id: 'sarthe',
+    nom: 'La Sarthe',
+    taille: 1.4,
+    etiquette: 62,
+    points: [[0.09, 48.45], [0.13, 48.23], [0.19, 48.12], [0.19, 48.07], [0.19, 48.0], [0.15, 47.92], [0.0, 47.88], [-0.08, 47.82], [-0.2, 47.83], [-0.35, 47.8]],
+  },
+  {
+    id: 'huisne',
+    nom: 'L’Huisne',
+    taille: 1.1,
+    etiquette: 40,
+    points: [[0.95, 48.4], [0.82, 48.32], [0.65, 48.19], [0.49, 48.06], [0.41, 48.05], [0.2, 47.99]],
+  },
+].map((r) => ({ ...r, d: courbe(r.points as [number, number][]) }));
+
+// ——— Repères du décor ———
+const provinces = [
+  { nom: 'MAINE', lon: 0.38, lat: 48.33 },
+  { nom: 'ANJOU', lon: -0.28, lat: 47.5, debut: true },
+  { nom: 'TOURAINE', lon: 0.38, lat: 47.16 },
+  { nom: 'VENDÔMOIS', lon: 0.95, lat: 47.98 },
+  { nom: 'BLÉSOIS', lon: 1.52, lat: 47.44 },
+].map((p) => ({ ...p, pos: xy(p.lon, p.lat) }));
+
+const villes = [
+  { nom: 'Saumur', lon: -0.077, lat: 47.26 },
+  { nom: 'La Flèche', lon: -0.076, lat: 47.6997 },
+  { nom: 'Château-du-Loir', lon: 0.4197, lat: 47.6947 },
+  { nom: 'Vendôme', lon: 1.0656, lat: 47.7928 },
+  { nom: 'Blois', lon: 1.3359, lat: 47.5861 },
+  { nom: 'Amboise', lon: 0.9822, lat: 47.4125 },
+  { nom: 'Nogent-le-Rotrou', lon: 0.8217, lat: 48.3217 },
+  { nom: 'Saint-Calais', lon: 0.745, lat: 47.92 },
+].map((v) => ({ ...v, pos: xy(v.lon, v.lat) }));
+
+const forets = [
+  { nom: 'Forêt de Bercé', lon: 0.39, lat: 47.81 },
+  { nom: 'Forêt de Vibraye', lon: 0.73, lat: 48.05 },
+].map((fo) => ({ ...fo, pos: xy(fo.lon, fo.lat) }));
+const arbres = [[-16, 0], [0, -6], [16, 1], [-8, 12], [9, 13], [24, 12], [-24, 12]];
+
+// ——— Lieux du parcours et des travaux ———
+const ident = (nom: string) =>
+  nom
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-');
+
+// Étiquette à gauche du point quand un autre lieu est juste à côté (Le Mans / Neuville)
+const aGauche = new Set(['Neuville-sur-Sarthe']);
+
+const lieux = Object.entries(communes)
+  .map(([nom, c]) => {
+    const etapes = parcours.filter((p) => p.commune === nom);
+    const projets = travaux.filter((tr) => tr.data.commune === nom);
+    const [x, y] = xy(c.lon, c.lat);
+    return {
+      id: ident(nom),
+      nom,
+      detail: localiser(c, lang).detail,
+      x,
+      y,
+      gauche: aGauche.has(nom),
+      etapes,
+      projets,
+    };
+  })
+  .filter((l) => l.etapes.length + l.projets.length > 0);
+
+// Fil du parcours : les communes dans l'ordre chronologique (le parcours est rangé du plus récent au plus ancien)
+const suite = [...parcours]
+  .reverse()
+  .map((p) => p.commune)
+  .filter((c): c is string => !!c && !!communes[c])
+  .filter((c, i, tout) => c !== tout[i - 1]);
+const fil = (() => {
+  let d = '';
+  suite.forEach((c, i) => {
+    const [x, y] = xy(communes[c].lon, communes[c].lat);
+    if (i === 0) {
+      d = `M${f(x)} ${f(y)}`;
+      return;
+    }
+    const [x0, y0] = xy(communes[suite[i - 1]].lon, communes[suite[i - 1]].lat);
+    // Arc léger : point de contrôle décalé perpendiculairement au segment
+    const mx = (x0 + x) / 2;
+    const my = (y0 + y) / 2;
+    const dx = x - x0;
+    const dy = y - y0;
+    const bombe = i % 2 ? 0.22 : -0.22;
+    d += `Q${f(mx - dy * bombe)} ${f(my + dx * bombe)} ${f(x)} ${f(y)}`;
+  });
+  return d;
+})();
+
+// Échelle : 20 km
+const echelle = (20 / 111.2) * k;
+
+// Rose des vents
+const rose = { x: 915, y: 105, r: 52 };
+const branches = Array.from({ length: 8 }, (_, i) => {
+  const a = (i * Math.PI) / 4 - Math.PI / 2;
+  const long = i % 2 ? rose.r * 0.55 : rose.r;
+  const g = a - Math.PI / 2;
+  const d = a + Math.PI / 2;
+  const l = i % 2 ? 5 : 8;
+  const pointe = [rose.x + Math.cos(a) * long, rose.y + Math.sin(a) * long];
+  const p1 = [rose.x + Math.cos(g) * l, rose.y + Math.sin(g) * l];
+  const p2 = [rose.x + Math.cos(d) * l, rose.y + Math.sin(d) * l];
+  return {
+    claire: `M${f(rose.x)} ${f(rose.y)}L${f(p1[0])} ${f(p1[1])}L${f(pointe[0])} ${f(pointe[1])}Z`,
+    sombre: `M${f(rose.x)} ${f(rose.y)}L${f(p2[0])} ${f(p2[1])}L${f(pointe[0])} ${f(pointe[1])}Z`,
+  };
+});
+
+// Bordure graduée (alternance de segments pleins et vides, comme sur les cartes anciennes)
+const pas = 50;
+const graduations: string[] = [];
+for (let x = 12; x < L - 12; x += pas * 2) graduations.push(`M${x} 12h${Math.min(pas, L - 12 - x)}M${x} ${H - 12}h${Math.min(pas, L - 12 - x)}`);
+for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min(pas, H - 12 - y)}M${L - 12} ${y}v${Math.min(pas, H - 12 - y)}`);
+---
+
+<section id="geographie" class="ecran geographie-ecran" aria-labelledby="titre-geographie">
+  <div class="contenu">
+    <div class="geographie-entete" data-reveal>
+      <p class="surtitre"><span class="chapitre">{chapitre} IV</span> {tx.surtitre}</p>
+      <h2 id="titre-geographie" class="titre-section">{tx.titre}</h2>
+    </div>
+
+    <div class="atlas" data-reveal>
+      <figure class="carte-papier">
+        <div class="carte-cadre" style={`aspect-ratio: ${L} / ${H}`}>
+          <svg class="carte" viewBox={`0 0 ${L} ${H}`} role="img" aria-labelledby="legende-carte">
+            <defs>
+              <pattern id="carte-hachure" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+                <path d="M0 0v6" class="hachure"></path>
+              </pattern>
+            </defs>
+
+            <!-- Cadre et bordure graduée -->
+            <rect x="6" y="6" width={L - 12} height={H - 12} class="cadre-ext"></rect>
+            <rect x="18" y="18" width={L - 36} height={H - 36} class="cadre-int"></rect>
+            <path d={graduations.join('')} class="graduation"></path>
+
+            <!-- Provinces -->
+            {
+              provinces.map((p) => (
+                <text x={f(p.pos[0])} y={f(p.pos[1])} class:list={['province', { debut: p.debut }]}>
+                  {p.nom}
+                </text>
+              ))
+            }
+
+            <!-- Forêts -->
+            {
+              forets.map((fo) => (
+                <g class="foret" transform={`translate(${f(fo.pos[0])} ${f(fo.pos[1])})`}>
+                  {arbres.map(([dx, dy]) => (
+                    <path d={`M${dx} ${dy - 9}l-5 9h10z M${dx} ${dy}v3`} />
+                  ))}
+                  <text y="32" class="foret-nom">
+                    {fo.nom}
+                  </text>
+                </g>
+              ))
+            }
+
+            <!-- Rivières : un liseré pâle sous un trait d'encre, et leur nom le long du cours -->
+            {
+              rivieres.map((r) => (
+                <g class="riviere">
+                  <path id={`riv-${r.id}`} d={r.d} class="eau" style={`stroke-width: ${r.taille * 4}`} />
+                  <path d={r.d} class="cours" pathLength="1" style={`stroke-width: ${r.taille}`} />
+                  <text class="riviere-nom" dy="-7">
+                    <textPath href={`#riv-${r.id}`} startOffset={`${r.etiquette}%`} text-anchor="middle">
+                      {r.nom}
+                    </textPath>
+                  </text>
+                </g>
+              ))
+            }
+
+            <!-- Villes repères -->
+            {
+              villes.map((v) => (
+                <g class="ville">
+                  <circle cx={f(v.pos[0])} cy={f(v.pos[1])} r="3.2" />
+                  <text x={f(v.pos[0] + 7)} y={f(v.pos[1] + 4)}>
+                    {v.nom}
+                  </text>
+                </g>
+              ))
+            }
+
+            <!-- Fil du parcours -->
+            {suite.length > 1 && <path d={fil} class="fil" pathLength="1" />}
+
+            <!-- Lieux du parcours et des travaux -->
+            {
+              lieux.map((l, i) => (
+                <g class="lieu" data-lieu={l.id} style={`--i: ${i}`}>
+                  <circle cx={f(l.x)} cy={f(l.y)} r="15" class="lieu-halo" />
+                  <circle cx={f(l.x)} cy={f(l.y)} r="7.5" class="lieu-cire" />
+                  <circle cx={f(l.x)} cy={f(l.y)} r="2.6" class="lieu-coeur" />
+                  <text
+                    x={f(l.gauche ? l.x - 14 : l.x + 14)}
+                    y={f(l.y + 6)}
+                    class:list={['lieu-nom', { gauche: l.gauche }]}
+                  >
+                    {l.nom}
+                  </text>
+                </g>
+              ))
+            }
+
+            <!-- Rose des vents -->
+            <g class="rose">
+              <circle cx={rose.x} cy={rose.y} r={rose.r * 0.72} class="rose-cercle"></circle>
+              <circle cx={rose.x} cy={rose.y} r={rose.r * 0.62} class="rose-cercle"></circle>
+              {
+                branches.map((b) => (
+                  <>
+                    <path d={b.claire} class="rose-claire" />
+                    <path d={b.sombre} class="rose-sombre" />
+                  </>
+                ))
+              }
+              <text x={rose.x} y={rose.y - rose.r - 8} class="rose-nord">N</text>
+            </g>
+
+            <!-- Cartouche, avec l'échelle -->
+            <g class="cartouche">
+              <rect x="34" y="34" width="168" height="150" class="cartouche-fond"></rect>
+              <rect x="40" y="40" width="156" height="138" class="cartouche-filet"></rect>
+              <text x="118" y="76" class="cartouche-titre">{tx.cartouche[0]}</text>
+              <text x="118" y="102" class="cartouche-ligne">{tx.cartouche[1]}</text>
+              <text x="118" y="122" class="cartouche-ligne">{tx.cartouche[2]}</text>
+              <g transform={`translate(${f(118 - echelle / 2)} 150)`}>
+                <path d={`M0 0h${f(echelle)}M0 -4v8M${f(echelle / 2)} -3v6M${f(echelle)} -4v8`} class="echelle"></path>
+                <rect x="0" y="-2" width={f(echelle / 2)} height="4" class="echelle-plein"></rect>
+                <text x={f(echelle / 2)} y="20" class="echelle-texte">{tx.echelle}</text>
+              </g>
+            </g>
+          </svg>
+
+          <!-- Boutons posés sur les lieux (accessibles au clavier) -->
+          {
+            lieux.map((l) => (
+              <button
+                type="button"
+                class="lieu-bouton"
+                data-lieu={l.id}
+                aria-controls={`fiche-${l.id}`}
+                aria-pressed="false"
+                style={`left: ${((l.x / L) * 100).toFixed(2)}%; top: ${((l.y / H) * 100).toFixed(2)}%`}
+              >
+                <span class="visuellement-cache">{l.nom}</span>
+              </button>
+            ))
+          }
+        </div>
+        <figcaption id="legende-carte" class="carte-legende">
+          {tx.legende}. <span class="fil-legende"><span aria-hidden="true" class="fil-trait"></span>{tx.itineraire}</span> · {tx.note}.
+        </figcaption>
+      </figure>
+
+      <div class="fiches-lieux" aria-live="polite">
+        <p class="invitation-lieu">
+          <span class="invitation-losange" aria-hidden="true"></span>
+          {tx.invitation}
+        </p>
+        {
+          lieux.map((l) => (
+            <article class="fiche-lieu" id={`fiche-${l.id}`} data-lieu={l.id} hidden>
+              <h3>{l.nom}</h3>
+              {l.detail && <p class="lieu-detail">{l.detail}</p>}
+              {l.etapes.length > 0 && (
+                <>
+                  <p class="lieu-rubrique">{tx.parcours}</p>
+                  <ul>
+                    {l.etapes.map((e) => (
+                      <li>
+                        <span class="lieu-dates">{e.dates}</span>
+                        <span class="lieu-titre">{e.titre}</span>
+                        <span class="lieu-lieu">{e.lieu}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {l.projets.length > 0 && (
+                <>
+                  <p class="lieu-rubrique">{tx.travaux}</p>
+                  <ul>
+                    {l.projets.map((p) => (
+                      <li>
+                        <a href={lien(lang, `/travaux/${p.id}/`)}>
+                          {p.data.titre} <span aria-hidden="true">→</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll<HTMLElement>('.geographie-ecran').forEach((ecran) => {
+    const boutons = [...ecran.querySelectorAll<HTMLButtonElement>('.lieu-bouton')];
+    const reperes = [...ecran.querySelectorAll<SVGGElement>('.lieu')];
+    const fiches = [...ecran.querySelectorAll<HTMLElement>('.fiche-lieu')];
+    const invitation = ecran.querySelector<HTMLElement>('.invitation-lieu');
+    let actif = '';
+
+    const choisir = (id: string) => {
+      if (id === actif) return;
+      actif = id;
+      boutons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lieu === id)));
+      reperes.forEach((r) => r.classList.toggle('actif', r.dataset.lieu === id));
+      fiches.forEach((f) => (f.hidden = f.dataset.lieu !== id));
+      if (invitation) invitation.hidden = !!id;
+    };
+
+    boutons.forEach((b) => {
+      const id = b.dataset.lieu ?? '';
+      b.addEventListener('click', () => choisir(id));
+      b.addEventListener('focus', () => choisir(id));
+      b.addEventListener('pointerenter', (e) => {
+        if (e.pointerType === 'mouse') choisir(id);
+      });
+      // Survol du bouton : le repère gravé s'anime
+      b.addEventListener('pointerenter', () => reperes.find((r) => r.dataset.lieu === id)?.classList.add('survol'));
+      b.addEventListener('pointerleave', () => reperes.find((r) => r.dataset.lieu === id)?.classList.remove('survol'));
+    });
+  });
+</script>
+
+<style>
+  .geographie-entete {
+    text-align: center;
+  }
+
+  .geographie-entete .titre-section {
+    margin-inline: auto;
+  }
+
+  .atlas {
+    display: grid;
+    grid-template-columns: minmax(0, auto) minmax(15rem, 21rem);
+    justify-content: center;
+    align-items: center;
+    gap: 2rem clamp(1.5rem, 4vw, 3.5rem);
+    margin-top: clamp(1.25rem, 3.5vh, 2.25rem);
+  }
+
+  /* Parchemin, comme la lettre du dernier chapitre */
+  .carte-papier {
+    position: relative;
+    margin: 0;
+    width: min(100%, calc((100svh - 19rem) * 1.045), 46rem);
+    padding: clamp(0.5rem, 1.5vw, 0.9rem);
+    background: radial-gradient(120% 90% at 30% 20%, #f4e9d0 0%, #e9dab7 55%, #d6c194 100%);
+    border-radius: 2px;
+    box-shadow:
+      inset 0 0 70px rgba(120, 80, 30, 0.35),
+      inset 0 0 0 1px rgba(90, 60, 20, 0.15),
+      0 30px 60px -18px rgba(0, 0, 0, 0.95);
+    rotate: 0.6deg;
+  }
+
+  .carte-papier::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0.35;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.32 0 0 0 0 0.15 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .carte-cadre {
+    position: relative;
+  }
+
+  .carte {
+    display: block;
+    width: 100%;
+    height: 100%;
+    font-family: var(--f-titre);
+  }
+
+  /* Encres */
+  .cadre-ext,
+  .cadre-int {
+    fill: none;
+    stroke: #4a3622;
+  }
+
+  .cadre-ext {
+    stroke-width: 1.6;
+  }
+
+  .cadre-int {
+    stroke-width: 1;
+  }
+
+  .graduation {
+    stroke: #4a3622;
+    stroke-width: 6;
+  }
+
+  .province {
+    font-family: var(--f-affiche);
+    font-size: 21px;
+    letter-spacing: 9px;
+    text-anchor: middle;
+    fill: rgba(74, 54, 34, 0.42);
+  }
+
+  .province.debut {
+    text-anchor: start;
+  }
+
+  .foret path {
+    fill: rgba(64, 80, 48, 0.55);
+    stroke: rgba(48, 58, 36, 0.8);
+    stroke-width: 0.8;
+  }
+
+  .foret-nom {
+    font-size: 12px;
+    font-style: italic;
+    text-anchor: middle;
+    fill: rgba(48, 58, 36, 0.85);
+  }
+
+  .eau {
+    fill: none;
+    stroke: rgba(80, 120, 140, 0.22);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .cours {
+    fill: none;
+    stroke: #34525f;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .riviere-nom {
+    font-size: 14px;
+    font-style: italic;
+    letter-spacing: 1.5px;
+    fill: #34525f;
+  }
+
+  .ville circle {
+    fill: #f4e9d0;
+    stroke: #4a3622;
+    stroke-width: 1.2;
+  }
+
+  .ville text {
+    font-size: 13px;
+    font-style: italic;
+    fill: rgba(58, 42, 26, 0.8);
+  }
+
+  .fil {
+    fill: none;
+    stroke: #8f2219;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-dasharray: 0.006 0.008;
+    opacity: 0.75;
+  }
+
+  /* Lieux : pastille de cire rouge cerclée d'or */
+  .lieu-halo {
+    fill: rgba(143, 34, 25, 0.14);
+    stroke: rgba(143, 34, 25, 0.35);
+    stroke-width: 1;
+    transform-box: fill-box;
+    transform-origin: center;
+    transition:
+      transform 350ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      fill 300ms ease;
+  }
+
+  .lieu-cire {
+    fill: #8f2219;
+    stroke: #c9a96e;
+    stroke-width: 1.6;
+  }
+
+  .lieu-coeur {
+    fill: #ecd9a8;
+  }
+
+  .lieu-nom {
+    font-family: var(--f-affiche);
+    font-size: 19px;
+    fill: #2b2117;
+    paint-order: stroke;
+    stroke: rgba(240, 228, 200, 0.85);
+    stroke-width: 4px;
+    stroke-linejoin: round;
+    transition: fill 250ms ease;
+  }
+
+  .lieu-nom.gauche {
+    text-anchor: end;
+  }
+
+  .lieu.actif .lieu-halo,
+  .lieu.survol .lieu-halo {
+    transform: scale(1.5);
+    fill: rgba(143, 34, 25, 0.22);
+  }
+
+  .lieu.actif .lieu-nom {
+    fill: #8f2219;
+  }
+
+  /* Rose des vents */
+  .rose-cercle {
+    fill: none;
+    stroke: #4a3622;
+    stroke-width: 0.8;
+  }
+
+  .rose-claire {
+    fill: #f4e9d0;
+    stroke: #4a3622;
+    stroke-width: 0.8;
+  }
+
+  .rose-sombre {
+    fill: #4a3622;
+  }
+
+  .rose-nord {
+    font-family: var(--f-affiche);
+    font-size: 18px;
+    text-anchor: middle;
+    fill: #4a3622;
+  }
+
+  /* Cartouche */
+  .cartouche-fond {
+    fill: rgba(244, 233, 208, 0.9);
+    stroke: #4a3622;
+    stroke-width: 1.4;
+  }
+
+  .cartouche-filet {
+    fill: none;
+    stroke: #4a3622;
+    stroke-width: 0.6;
+  }
+
+  .cartouche-titre {
+    font-family: var(--f-script);
+    font-size: 25px;
+    text-anchor: middle;
+    fill: #2b2117;
+  }
+
+  .cartouche-ligne {
+    font-size: 15px;
+    font-style: italic;
+    text-anchor: middle;
+    fill: #4a3622;
+  }
+
+  .echelle {
+    stroke: #2b2117;
+    stroke-width: 1.2;
+  }
+
+  .echelle-plein {
+    fill: #2b2117;
+  }
+
+  .echelle-texte {
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-anchor: middle;
+    fill: #2b2117;
+  }
+
+  /* Zones cliquables posées sur les lieux */
+  .lieu-bouton {
+    position: absolute;
+    width: 2.6rem;
+    height: 2.6rem;
+    translate: -50% -50%;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .lieu-bouton:focus-visible {
+    outline: 2px solid #8f2219;
+    outline-offset: 2px;
+  }
+
+  .carte-legende {
+    margin-top: 0.6rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-style: italic;
+    color: #5a4630;
+  }
+
+  .fil-legende {
+    white-space: nowrap;
+  }
+
+  .fil-trait {
+    display: inline-block;
+    width: 1.6rem;
+    height: 0;
+    margin-right: 0.4rem;
+    vertical-align: middle;
+    border-top: 2px dotted #8f2219;
+  }
+
+  /* Fiche du lieu choisi */
+  .fiches-lieux {
+    align-self: center;
+    min-height: 12rem;
+  }
+
+  .invitation-lieu {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    font-family: var(--f-titre);
+    font-style: italic;
+    font-size: 1.3rem;
+    color: var(--gris-or);
+  }
+
+  .invitation-losange {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    background: var(--braise);
+    rotate: 45deg;
+  }
+
+  .fiche-lieu {
+    padding: 1.4rem 1.5rem 1.5rem;
+    border: 1px solid var(--filet);
+    background: var(--encart);
+  }
+
+  .fiche-lieu h3 {
+    font-family: var(--f-affiche);
+    font-size: 1.9rem;
+    font-weight: 400;
+    color: var(--ivoire);
+  }
+
+  .lieu-detail {
+    margin-top: 0.2rem;
+    font-style: italic;
+    color: var(--gris-or);
+  }
+
+  .lieu-rubrique {
+    margin-top: 1.1rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--filet-pale);
+    font-size: 0.68rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--or);
+  }
+
+  .fiche-lieu ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .fiche-lieu li {
+    display: flex;
+    flex-direction: column;
+    padding-top: 0.6rem;
+  }
+
+  .lieu-dates {
+    font-size: 0.8rem;
+    color: var(--or);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .lieu-titre {
+    font-family: var(--f-titre);
+    font-size: 1.15rem;
+    line-height: 1.25;
+    color: var(--ivoire);
+  }
+
+  .lieu-lieu {
+    font-size: 0.85rem;
+    color: var(--gris-or);
+  }
+
+  .fiche-lieu a {
+    font-family: var(--f-titre);
+    font-size: 1.15rem;
+    font-style: italic;
+    text-decoration: none;
+  }
+
+  .fiche-lieu a:hover {
+    text-decoration: underline;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* La carte se grave à l'arrivée : rivières tracées, fil du parcours, puis les lieux */
+    .cours {
+      stroke-dasharray: 1;
+      stroke-dashoffset: 0;
+    }
+
+    :global(.js) .atlas:not(.revele) .cours {
+      stroke-dashoffset: 1;
+    }
+
+    :global(.js) .atlas.revele .cours {
+      animation: graver 1800ms cubic-bezier(0.65, 0, 0.35, 1) 200ms backwards;
+    }
+
+    :global(.js) .atlas:not(.revele) :is(.fil, .lieu) {
+      opacity: 0;
+    }
+
+    :global(.js) .atlas.revele .fil {
+      animation: apparaitre-carte 1200ms ease 1400ms backwards;
+    }
+
+    :global(.js) .atlas.revele .lieu {
+      animation: poser 700ms cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
+      animation-delay: calc(1100ms + var(--i) * 140ms);
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+
+    /* Les lieux palpitent doucement tant qu'aucun n'est choisi */
+    .atlas:not(:has(.lieu.actif)) .lieu-halo {
+      animation: palpiter 2.6s ease-in-out infinite;
+    }
+
+    @keyframes graver {
+      from {
+        stroke-dashoffset: 1;
+      }
+    }
+
+    @keyframes apparaitre-carte {
+      from {
+        opacity: 0;
+      }
+    }
+
+    @keyframes poser {
+      from {
+        opacity: 0;
+        transform: translateY(-14px) scale(1.4);
+      }
+    }
+
+    @keyframes palpiter {
+      50% {
+        transform: scale(1.35);
+      }
+    }
+  }
+
+  @media (max-width: 56rem) {
+    .atlas {
+      grid-template-columns: 1fr;
+      justify-items: center;
+    }
+
+    .carte-papier {
+      width: min(100%, 34rem);
+      rotate: none;
+    }
+
+    .fiches-lieux {
+      width: min(100%, 34rem);
+      min-height: 0;
+    }
+  }
+</style>

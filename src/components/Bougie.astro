@@ -1,0 +1,247 @@
+---
+// Bougie de l'en-tête : allumée, le site est en thème sombre (lecture à la chandelle) ;
+// on la souffle et le jour se lève sur un papier vélin (thème clair). Le choix est mémorisé.
+// Le nouveau thème s'ouvre en cercle depuis la flamme (View Transitions, si le navigateur le permet).
+import { t, type Langue } from '../i18n';
+
+interface Props {
+  lang: Langue;
+}
+
+const tx = t(Astro.props.lang).bougie;
+---
+
+<button
+  type="button"
+  class="bougie"
+  aria-pressed="false"
+  aria-label={tx.versClair}
+  data-vers-clair={tx.versClair}
+  data-vers-sombre={tx.versSombre}
+>
+  <svg viewBox="0 0 24 40" aria-hidden="true">
+    <ellipse class="halo-bougie" cx="12" cy="11" rx="9" ry="10"></ellipse>
+    <g class="flamme">
+      <path class="flamme-ext" d="M12 2.5c3.2 4.6 4.6 7.6 4.6 10.1a4.6 4.6 0 0 1-9.2 0c0-2.5 1.4-5.5 4.6-10.1z"></path>
+      <path class="flamme-int" d="M12 8.2c1.6 2.4 2.3 3.9 2.3 5.1a2.3 2.3 0 0 1-4.6 0c0-1.2.7-2.7 2.3-5.1z"></path>
+    </g>
+    <path class="fumee" pathLength="1" d="M12 17c-2.2-2.6 2.2-4.6 0-7.2s2.2-4.6 0-7.2"></path>
+    <path class="meche" d="M12 17.2v3.3"></path>
+    <rect class="cire" x="8" y="20.5" width="8" height="14" rx="1"></rect>
+    <path class="coulure" d="M10.2 20.5v3.6a.9.9 0 0 0 1.8 0v-1.8"></path>
+    <path class="bougeoir" d="M2.5 35.5h19M5 35.5c0 2.1 3.1 3.2 7 3.2s7-1.1 7-3.2"></path>
+  </svg>
+</button>
+
+<script>
+  const bouton = document.querySelector<HTMLButtonElement>('.bougie');
+  const racine = document.documentElement;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  const reduit = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const maj = () => {
+    if (!bouton) return;
+    const clair = racine.dataset.theme === 'clair';
+    bouton.setAttribute('aria-pressed', String(clair));
+    bouton.setAttribute('aria-label', (clair ? bouton.dataset.versSombre : bouton.dataset.versClair) ?? '');
+    meta?.setAttribute('content', clair ? '#efe4cc' : '#0d0b08');
+  };
+
+  const appliquer = (clair: boolean) => {
+    if (clair) racine.dataset.theme = 'clair';
+    else delete racine.dataset.theme;
+    try {
+      localStorage.setItem('theme', clair ? 'clair' : 'sombre');
+    } catch {
+      // stockage indisponible (navigation privée) : le thème vaut pour cette page seulement
+    }
+    maj();
+    // Prévient la poussière dorée (couleurs de la toile)
+    window.dispatchEvent(new CustomEvent('changement-theme'));
+  };
+
+  maj();
+
+  bouton?.addEventListener('click', () => {
+    const clair = racine.dataset.theme !== 'clair';
+    bouton.classList.toggle('souffle', clair);
+
+    if (reduit || !('startViewTransition' in document)) {
+      appliquer(clair);
+      return;
+    }
+
+    // Le nouveau thème s'ouvre en cercle depuis la flamme
+    const r = bouton.getBoundingClientRect();
+    const x = r.left + r.width / 2;
+    const y = r.top + r.height * 0.3;
+    const rayon = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+
+    racine.classList.add('changement-theme');
+    const transition = document.startViewTransition(() => appliquer(clair));
+    transition.ready
+      .then(() => {
+        racine.animate(
+          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${rayon}px at ${x}px ${y}px)`] },
+          { duration: 900, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', pseudoElement: '::view-transition-new(root)' },
+        );
+      })
+      .catch(() => {});
+    transition.finished.finally(() => racine.classList.remove('changement-theme'));
+  });
+</script>
+
+<style>
+  .bougie {
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 2.4rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    color: var(--or);
+  }
+
+  .bougie svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .cire {
+    fill: #efe3c6;
+    stroke: var(--or-sombre);
+    stroke-width: 0.6;
+  }
+
+  .coulure {
+    fill: none;
+    stroke: #d9c79f;
+    stroke-width: 1.2;
+    stroke-linecap: round;
+  }
+
+  .meche {
+    stroke: #3a2c1e;
+    stroke-width: 1.1;
+    stroke-linecap: round;
+  }
+
+  .bougeoir {
+    fill: none;
+    stroke: var(--or);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+  }
+
+  .flamme {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    transition:
+      opacity 300ms ease,
+      transform 300ms ease;
+  }
+
+  .flamme-ext {
+    fill: #f2b257;
+  }
+
+  .flamme-int {
+    fill: #fff4d6;
+  }
+
+  .halo-bougie {
+    fill: rgba(242, 178, 87, 0.18);
+    transition: opacity 400ms ease;
+  }
+
+  .fumee {
+    fill: none;
+    stroke: var(--gris-or);
+    stroke-width: 0.9;
+    stroke-linecap: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    opacity: 0;
+  }
+
+  /* Thème clair : bougie éteinte */
+  :global(html[data-theme='clair']) .flamme {
+    opacity: 0;
+    transform: scale(0.2, 0.1);
+  }
+
+  :global(html[data-theme='clair']) .halo-bougie {
+    opacity: 0;
+  }
+
+  .bougie:hover .flamme-ext {
+    fill: #ffc66e;
+  }
+
+  .bougie:focus-visible {
+    outline-offset: 4px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* Flamme qui vacille doucement */
+    .flamme {
+      animation: vaciller 2.8s ease-in-out infinite;
+    }
+
+    .halo-bougie {
+      animation: luire 2.8s ease-in-out infinite;
+    }
+
+    :global(html[data-theme='clair']) .flamme,
+    :global(html[data-theme='clair']) .halo-bougie {
+      animation: none;
+    }
+
+    @keyframes vaciller {
+      0%,
+      100% {
+        transform: scale(1, 1) rotate(0deg);
+      }
+      25% {
+        transform: scale(0.94, 1.06) rotate(-2deg);
+      }
+      55% {
+        transform: scale(1.04, 0.95) rotate(1.5deg);
+      }
+      80% {
+        transform: scale(0.97, 1.03) rotate(-1deg);
+      }
+    }
+
+    @keyframes luire {
+      50% {
+        opacity: 0.6;
+      }
+    }
+
+    /* On vient de la souffler : un filet de fumée monte et se dissipe */
+    .souffle .fumee {
+      animation: fumer 1600ms ease-out both;
+    }
+
+    @keyframes fumer {
+      0% {
+        opacity: 0.9;
+        stroke-dashoffset: 1;
+        transform: translateY(0);
+      }
+      60% {
+        opacity: 0.6;
+        stroke-dashoffset: 0;
+      }
+      100% {
+        opacity: 0;
+        stroke-dashoffset: 0;
+        transform: translateY(-8px);
+      }
+    }
+  }
+</style>

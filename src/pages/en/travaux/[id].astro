@@ -1,0 +1,13 @@
+---
+import Fiche from '../../../components/Fiche.astro';
+import { chargerTravaux } from '../../../data/travaux';
+
+export async function getStaticPaths() {
+  const travaux = await chargerTravaux('en');
+  return travaux.map((travail, i) => ({ params: { id: travail.id }, props: { travail, rang: i + 1 } }));
+}
+
+const { travail, rang } = Astro.props;
+---
+
+<Fiche travail={travail} rang={rang} lang="en" />

@@ -1,0 +1,114 @@
+---
+// Loupe de salle de lecture : au survol d'une gravure (conteneur [data-loupe] contenant une image),
+// une lentille ronde suit la souris et agrandit l'image, comme aux archives.
+// Seulement avec une souris (pas sur écran tactile) ; rien avec « réduire les animations ».
+---
+
+<div class="loupe" aria-hidden="true"><span class="loupe-reflet"></span></div>
+
+<script>
+  const loupe = document.querySelector<HTMLElement>('.loupe');
+  const souris = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const reduit = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const zoom = 2.6;
+
+  if (loupe && souris && !reduit) {
+    const rayon = () => loupe.offsetWidth / 2;
+    let attente = 0;
+    let dernier: PointerEvent | null = null;
+    let zone: HTMLElement | null = null;
+    let image: HTMLImageElement | null = null;
+
+    const placer = () => {
+      attente = 0;
+      if (!dernier || !zone || !image || !image.naturalWidth) return;
+      const r = image.getBoundingClientRect();
+      // L'image est cadrée en « cover » : on retrouve la taille réellement affichée
+      const echelle = Math.max(r.width / image.naturalWidth, r.height / image.naturalHeight);
+      const l = image.naturalWidth * echelle;
+      const h = image.naturalHeight * echelle;
+      const ox = (r.width - l) / 2;
+      const oy = (r.height - h) / 2;
+      const px = dernier.clientX - r.left - ox;
+      const py = dernier.clientY - r.top - oy;
+      const R = rayon();
+      loupe.style.transform = `translate3d(${dernier.clientX - R}px, ${dernier.clientY - R}px, 0)`;
+      loupe.style.backgroundSize = `${l * zoom}px ${h * zoom}px`;
+      loupe.style.backgroundPosition = `${R - px * zoom}px ${R - py * zoom}px`;
+    };
+
+    const entrer = (cible: HTMLElement) => {
+      image = cible.querySelector('img');
+      if (!image) return;
+      zone = cible;
+      loupe.style.backgroundImage = `url("${image.currentSrc || image.src}")`;
+      // Même traitement sépia que l'image affichée
+      loupe.style.filter = getComputedStyle(image).filter;
+      loupe.classList.add('visible');
+    };
+
+    const sortir = () => {
+      zone = null;
+      loupe.classList.remove('visible');
+    };
+
+    document.addEventListener(
+      'pointermove',
+      (e) => {
+        if (e.pointerType !== 'mouse') return;
+        const cible = (e.target as Element | null)?.closest?.<HTMLElement>('[data-loupe]') ?? null;
+        // Une diapositive masquée du carrousel ne compte pas
+        if (cible && cible.closest('[inert]')) return sortir();
+        if (cible !== zone) {
+          if (cible) entrer(cible);
+          else return sortir();
+        }
+        dernier = e;
+        if (!attente) attente = requestAnimationFrame(placer);
+      },
+      { passive: true },
+    );
+    document.addEventListener('pointerleave', sortir);
+    window.addEventListener('scroll', sortir, { passive: true });
+  }
+</script>
+
+<style>
+  .loupe {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 90;
+    width: 11rem;
+    height: 11rem;
+    border-radius: 50%;
+    background-color: #120e0a;
+    background-repeat: no-repeat;
+    border: 3px solid #b8955a;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.6),
+      0 0 0 6px rgba(60, 40, 20, 0.55),
+      0 18px 40px -8px rgba(0, 0, 0, 0.85),
+      inset 0 0 22px rgba(0, 0, 0, 0.55);
+    pointer-events: none;
+    opacity: 0;
+    scale: 0.6;
+    transition:
+      opacity 220ms ease,
+      scale 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    will-change: transform;
+  }
+
+  .loupe.visible {
+    opacity: 1;
+    scale: 1;
+  }
+
+  /* Reflet sur le verre */
+  .loupe-reflet {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(60% 45% at 30% 22%, rgba(255, 250, 235, 0.28), transparent 60%);
+  }
+</style>
