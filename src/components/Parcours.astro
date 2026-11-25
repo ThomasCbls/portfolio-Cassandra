@@ -1,0 +1,219 @@
+---
+// Chapitre « Parcours » : deux onglets sur la même matière.
+//  - Chronologie : formation et expériences sur la frise des années (Frise.astro) ;
+//  - Cartographie : les lieux du parcours et des travaux sur la carte ancienne (Carte.astro).
+// Sans JavaScript, les deux vues s'affichent l'une sous l'autre.
+import Frise from './Frise.astro';
+import Carte from './Carte.astro';
+import { communes } from '../data/profil';
+import type { Travail } from '../data/travaux';
+import { t, type Langue } from '../i18n';
+
+interface Etape {
+  dates: string;
+  datesSource?: string;
+  titre: string;
+  lieu: string;
+  commune?: string;
+  alternance?: boolean;
+  stage?: boolean;
+}
+
+interface Props {
+  lang: Langue;
+  parcours: Etape[];
+  travaux: Travail[];
+  /** Numéro du chapitre, en chiffres romains */
+  numero: string;
+}
+
+const { lang, parcours, travaux, numero } = Astro.props;
+const tx = t(lang).parcours;
+const chapitre = t(lang).chapitre;
+
+// Étendue de la chronologie : de la première à la dernière année citée
+const annees = parcours.flatMap((p) => ((p.datesSource ?? p.dates).match(/\d{4}/g) ?? []).map(Number));
+const etendueChronologie = annees.length ? `${Math.min(...annees)} – ${Math.max(...annees)}` : '';
+
+// Nombre de lieux placés sur la carte
+const nombreLieux = new Set(
+  [...parcours.map((p) => p.commune), ...travaux.map((tr) => tr.data.commune)].filter((c): c is string => !!c && !!communes[c]),
+).size;
+
+const onglets = [
+  { id: 'chronologie', nom: tx.chronologie, etendue: etendueChronologie },
+  { id: 'cartographie', nom: tx.cartographie, etendue: tx.lieux(nombreLieux) },
+];
+---
+
+<section id="parcours" class="ecran parcours-ecran" aria-labelledby="titre-parcours">
+  <div class="contenu">
+    <div class="parcours-entete" data-reveal>
+      <div>
+        <p class="surtitre"><span class="chapitre">{chapitre} {numero}</span> {tx.surtitre}</p>
+        <h2 id="titre-parcours" class="titre-section">{tx.titre}</h2>
+      </div>
+      <div class="onglets" role="tablist" aria-label={tx.choisir}>
+        {
+          onglets.map((o, i) => (
+            <button
+              type="button"
+              role="tab"
+              class="onglet"
+              id={`onglet-${o.id}`}
+              aria-controls={`panneau-${o.id}`}
+              aria-selected={i === 0 ? 'true' : 'false'}
+              tabindex={i === 0 ? 0 : -1}
+            >
+              <span class="onglet-nom">{o.nom}</span>
+              <span class="onglet-etendue">{o.etendue}</span>
+            </button>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="panneau" id="panneau-chronologie" role="tabpanel" aria-labelledby="onglet-chronologie">
+      <Frise vue="parcours" parcours={parcours} lang={lang} />
+    </div>
+
+    <div class="panneau" id="panneau-cartographie" role="tabpanel" aria-labelledby="onglet-cartographie" hidden>
+      <Carte lang={lang} parcours={parcours} travaux={travaux} />
+    </div>
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll<HTMLElement>('.parcours-ecran').forEach((ecran) => {
+    const onglets = [...ecran.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const panneaux = [...ecran.querySelectorAll<HTMLElement>('[role="tabpanel"]')];
+    const n = onglets.length;
+
+    const activer = (i: number, focus = false) => {
+      onglets.forEach((o, j) => {
+        o.setAttribute('aria-selected', String(i === j));
+        o.tabIndex = i === j ? 0 : -1;
+      });
+      panneaux.forEach((p, j) => (p.hidden = i !== j));
+      if (focus) onglets[i].focus();
+    };
+
+    onglets.forEach((o, i) => {
+      o.addEventListener('click', () => activer(i));
+      o.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        e.preventDefault();
+        e.stopPropagation();
+        activer((i + (e.key === 'ArrowRight' ? 1 : -1) + n) % n, true);
+      });
+    });
+  });
+</script>
+
+<style>
+  /* En-tête : titre à gauche, onglets à droite */
+  .parcours-entete {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem 2rem;
+    padding-bottom: 1rem;
+  }
+
+  .parcours-entete::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--or) 0%, rgba(201, 169, 110, 0.35) 45%, transparent 100%);
+  }
+
+  .onglets {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.3rem;
+    border: 1px solid var(--filet);
+    border-radius: 999px;
+    background: rgba(13, 11, 8, 0.4);
+  }
+
+  .onglet {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.05rem;
+    padding: 0.45rem 1.25rem 0.5rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--gris-or);
+    font: inherit;
+    cursor: pointer;
+    transition:
+      background-color 300ms ease,
+      color 300ms ease;
+  }
+
+  .onglet-nom {
+    font-size: 0.68rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .onglet-etendue {
+    font-family: var(--f-titre);
+    font-style: italic;
+    font-size: 1.05rem;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .onglet:hover {
+    color: var(--ivoire);
+  }
+
+  .onglet[aria-selected='true'] {
+    background: linear-gradient(135deg, var(--or-clair), var(--or));
+    color: var(--carte);
+  }
+
+  /* Sans JavaScript, les deux vues s'affichent l'une sous l'autre */
+  :global(html:not(.js)) .panneau[hidden] {
+    display: block;
+    margin-top: 3rem;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .panneau:not([hidden]) {
+      animation: fondu 600ms ease both;
+    }
+
+    @keyframes fondu {
+      from {
+        opacity: 0;
+      }
+    }
+  }
+
+  /* Écrans peu hauts : titre resserré pour que la frise et la carte tiennent dans la fenêtre */
+  @media (max-height: 62rem) and (min-width: 40rem) {
+    .parcours-entete .titre-section {
+      font-size: clamp(2.5rem, 7vh, 3.5rem);
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .onglets {
+      width: 100%;
+    }
+
+    .onglet {
+      flex: 1;
+      padding-inline: 0.5rem;
+    }
+  }
+</style>

@@ -2,8 +2,8 @@
 // Page d'accueil, commune aux deux langues (src/pages/index.astro et src/pages/en/index.astro).
 import Base from '../layouts/Base.astro';
 import Frise from './Frise.astro';
+import Parcours from './Parcours.astro';
 import Carrousel from './Carrousel.astro';
-import Carte from './Carte.astro';
 import Icone from './Icone.astro';
 import Monogramme from './Monogramme.astro';
 import { profil as profilFr, parcours as parcoursFr, competences as competencesFr, outils as outilsFr } from '../data/profil';
@@ -78,10 +78,22 @@ const fente = `M${fentePoints}`;
 const clipGauche = `M-10 -10L57 -10L${fentePoints}L61 130L-10 130Z`;
 const clipDroite = `M130 -10L57 -10L${fentePoints}L61 130L130 130Z`;
 
+// Chapitres de la page, dans l'ordre. « Siècles étudiés » n'apparaît que si au moins un travail
+// a une période renseignée (champs `debut` et `fin`) ; les numéros des chapitres suivent.
+type Ecran = keyof typeof tx.ecrans;
+const ordre: Ecran[] = [
+  'accueil',
+  'parcours',
+  ...(elementsFrise.length > 0 ? (['siecles'] as const) : []),
+  'travaux',
+  'competences',
+  'bibliotheque',
+  'contact',
+];
+const numero = (id: Ecran) => romain(ordre.indexOf(id) + 1);
+
 // Repères de navigation sur le côté de l'écran
-const ecrans = (['accueil', 'chronologie', 'travaux', 'geographie', 'competences', 'bibliotheque', 'contact'] as const).map(
-  (id) => ({ id, nom: tx.ecrans[id] }),
-);
+const ecrans = ordre.map((id) => ({ id, nom: tx.ecrans[id] }));
 
 // Livres de la bibliothèque : le travail lié (s'il existe) pour le lien « Voir le projet »
 const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : undefined);
@@ -109,7 +121,7 @@ const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : un
     <div class="contenu ouverture-grille" data-reveal>
       <!-- Masqué tant que le médaillon n'a pas été ouvert (visible d'emblée sans JavaScript) -->
       <div class="ouverture-texte" id="intro-texte">
-        <p class="surtitre" style="--i: 0"><span class="chapitre">{tx.chapitre} I</span> {tx.portfolio}</p>
+        <p class="surtitre" style="--i: 0"><span class="chapitre">{tx.chapitre} {numero('accueil')}</span> {tx.portfolio}</p>
         <p class="script-intro" aria-hidden="true" style="--i: 1"><span class="ecrit">{tx.introduction}</span></p>
         <h1 id="nom" tabindex="-1" style="--i: 2">{profil.nom}</h1>
         <div class="filet" style="--i: 3"></div>
@@ -160,30 +172,34 @@ const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : un
       </div>
     </div>
 
-    <a class="defiler" href="#chronologie">
+    <a class="defiler" href="#parcours">
       <span>{tx.defiler}</span>
       <span class="defiler-trait" aria-hidden="true"></span>
     </a>
   </section>
 
-  <!-- II. Chronologie -->
-  <section id="chronologie" class="ecran" aria-label="Chronologie">
-    <div class="contenu">
-      <Frise travaux={elementsFrise} parcours={parcours} lang={lang} />
-    </div>
-  </section>
+  <!-- II. Parcours : chronologie et cartographie -->
+  <Parcours lang={lang} parcours={parcours} travaux={travaux} numero={numero('parcours')} />
 
-  <!-- III. Travaux -->
-  <Carrousel travaux={travaux} lang={lang} />
+  <!-- III. Siècles étudiés (si au moins un travail a une période) -->
+  {
+    elementsFrise.length > 0 && (
+      <section id="siecles" class="ecran">
+        <div class="contenu">
+          <Frise vue="siecles" travaux={elementsFrise} lang={lang} numero={numero('siecles')} />
+        </div>
+      </section>
+    )
+  }
 
-  <!-- IV. Géographie -->
-  <Carte lang={lang} parcours={parcours} travaux={travaux} />
+  <!-- IV. Travaux -->
+  <Carrousel travaux={travaux} lang={lang} numero={numero('travaux')} />
 
   <!-- V. Compétences -->
   <section id="competences" class="ecran competences-ecran" aria-labelledby="titre-competences">
     <div class="contenu">
       <div class="competences-entete" data-reveal>
-        <p class="surtitre"><span class="chapitre">{tx.chapitre} V</span> {tx.competences.surtitre}</p>
+        <p class="surtitre"><span class="chapitre">{tx.chapitre} {numero('competences')}</span> {tx.competences.surtitre}</p>
         <h2 id="titre-competences" class="titre-section">{tx.competences.titre}</h2>
         <div class="filet filet-centre"></div>
       </div>
@@ -207,7 +223,7 @@ const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : un
   <section id="bibliotheque" class="ecran bibliotheque-ecran" aria-labelledby="titre-bibliotheque">
     <div class="contenu">
       <div class="bibliotheque-entete" data-reveal>
-        <p class="surtitre"><span class="chapitre">{tx.chapitre} VI</span> {tx.bibliotheque.surtitre}</p>
+        <p class="surtitre"><span class="chapitre">{tx.chapitre} {numero('bibliotheque')}</span> {tx.bibliotheque.surtitre}</p>
         <h2 id="titre-bibliotheque" class="titre-section">{tx.bibliotheque.titre}</h2>
         <div class="filet filet-centre"></div>
       </div>
@@ -303,7 +319,7 @@ const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : un
   <!-- VII. Contact : une lettre scellée -->
   <section id="contact" class="ecran contact" aria-labelledby="titre-contact">
     <div class="contenu" data-reveal>
-      <p class="surtitre"><span class="chapitre">{tx.chapitre} VII</span> {tx.contact.surtitre}</p>
+      <p class="surtitre"><span class="chapitre">{tx.chapitre} {numero('contact')}</span> {tx.contact.surtitre}</p>
       <h2 id="titre-contact" class="titre-section">{tx.contact.titre}</h2>
 
       <div class="lettre">
@@ -565,6 +581,8 @@ const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : un
 </script>
 
 <script>
+  import { romain } from '../data/republicain';
+
   // ——— Pages empilées et repère latéral ———
   // Les positions « au repos » des écrans sont mesurées une fois (puis à chaque changement de taille) :
   // au défilement, tout se calcule à partir de window.scrollY, sans relire la mise en page,
@@ -585,6 +603,17 @@ const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : un
     voile.setAttribute('aria-hidden', 'true');
     ecran.append(voile);
     return voile;
+  });
+
+  // Grand numéro du chapitre en filigrane : il glisse plus vite que la page (effet de profondeur)
+  const numeros = ecrans.map((ecran, i) => {
+    if (!empile || i === 0) return null;
+    const numero = document.createElement('span');
+    numero.className = 'numero-filigrane';
+    numero.setAttribute('aria-hidden', 'true');
+    numero.textContent = romain(i + 1);
+    ecran.append(numero);
+    return numero;
   });
 
   let hFenetre = window.innerHeight;
@@ -609,7 +638,8 @@ const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : un
     });
   };
 
-  const parts = ecrans.map(() => -1);
+  // Dernier état appliqué à chaque écran : on n'écrit dans le DOM que ce qui change
+  const etats = ecrans.map(() => ({ entree: -1, part: -1 }));
   const recouverts = ecrans.map(() => false);
   let courantId = '';
   let enAttente = false;
@@ -619,18 +649,36 @@ const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : un
     const y = window.scrollY;
     let courant = 0;
 
-    ecrans.forEach((ecran, i) => {
+    // Part de chaque écran recouverte par le suivant (0 → 1)
+    const parts = ecrans.map((_, i) => {
       if (plages[i].debut - y <= hFenetre * 0.5) courant = i;
-
-      // Part de l'écran recouverte par le suivant (0 → 1)
       const suivant = plages[i + 1];
-      const part = suivant ? Math.round(Math.min(1, Math.max(0, 1 - (suivant.debut - y) / hFenetre)) * 1000) / 1000 : 0;
+      return suivant ? Math.round(Math.min(1, Math.max(0, 1 - (suivant.debut - y) / hFenetre)) * 1000) / 1000 : 0;
+    });
 
-      if (empile && part !== parts[i]) {
-        parts[i] = part;
-        ecran.style.transform = part > 0 ? `scale(${1 - part * 0.07})` : '';
+    ecrans.forEach((ecran, i) => {
+      const part = parts[i];
+      // Arrivée de l'écran : 0 quand il pointe en bas de la fenêtre, 1 quand il la couvre
+      const entree = i === 0 ? 1 : parts[i - 1];
+      const etat = etats[i];
+
+      if (empile && (part !== etat.part || entree !== etat.entree)) {
+        etat.part = part;
+        etat.entree = entree;
+        const reste = 1 - entree;
+        // Rideau : la page arrive comme une carte aux coins arrondis, qui s'aplatissent en fin de course ;
+        // la page quittée recule, remonte légèrement et se floute dans la profondeur
+        const echelle = (1 - reste * 0.04) * (1 - part * 0.06);
+        ecran.style.transform =
+          reste > 0 || part > 0 ? `translate3d(0, ${(-part * 4).toFixed(2)}vh, 0) scale(${echelle.toFixed(4)})` : '';
+        const rayon = reste > 0 ? `${(reste * 2.75).toFixed(3)}rem` : '';
+        ecran.style.borderTopLeftRadius = rayon;
+        ecran.style.borderTopRightRadius = rayon;
+        ecran.style.filter = part > 0.01 ? `blur(${(part * 3).toFixed(2)}px)` : '';
         const voile = voiles[i];
-        if (voile) voile.style.opacity = part > 0 ? String(part * 0.65) : '';
+        if (voile) voile.style.opacity = part > 0 ? String(part * 0.55) : '';
+        const numero = numeros[i];
+        if (numero) numero.style.transform = reste > 0 || part > 0 ? `translate3d(0, ${(reste * 45 - part * 25).toFixed(2)}vh, 0)` : '';
       }
 
       // Entièrement recouvert : ses animations se réinitialisent (elles se rejoueront au retour)
@@ -669,7 +717,7 @@ const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : un
   window.addEventListener('resize', remesurer);
   window.addEventListener('load', remesurer);
   document.fonts?.ready?.then(remesurer);
-  // La hauteur des écrans change quand on ouvre l'introduction ou qu'on change d'onglet de frise
+  // La hauteur des écrans change quand on ouvre l'introduction ou qu'on change d'onglet du parcours
   if ('ResizeObserver' in window) {
     const surveillance = new ResizeObserver(remesurer);
     ecrans.forEach((e) => surveillance.observe(e));
@@ -694,8 +742,6 @@ const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : un
 
       e.preventDefault();
       if (location.hash !== url.hash) history.pushState(null, '', url.hash);
-      // Prévient la frise (le lien « Parcours » ouvre la vue parcours)
-      window.dispatchEvent(new HashChangeEvent('hashchange'));
 
       mesurer();
       window.scrollTo({ top: plages[i].debut, behavior: 'smooth' });
@@ -2346,6 +2392,18 @@ const travailDe = (id?: string) => (id ? travaux.find((tr) => tr.id === id) : un
       display: none;
     }
 
+  }
+
+  /* Téléphone en paysage : texte et médaillon côte à côte, sinon le texte part hors de l'écran */
+  @media (max-width: 56rem) and (orientation: landscape) and (max-height: 32rem) {
+    .ouverture-grille {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .medaillon-zone {
+      order: 0;
+      width: min(30vw, 10rem);
+    }
   }
 
   @media (max-width: 36rem) {

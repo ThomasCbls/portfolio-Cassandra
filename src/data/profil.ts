@@ -229,7 +229,7 @@ export const competences = [
   },
 ];
 
-// Carte « Géographie » : coordonnées des communes citées dans le parcours (`commune`)
+// Carte (onglet « Cartographie » du chapitre Parcours) : coordonnées des communes citées dans le parcours (`commune`)
 // et dans les travaux (champ `commune` des fichiers de src/content/travaux).
 // Latitude et longitude en degrés décimaux (clic droit sur Google Maps → coordonnées).
 export const communes: Record<string, { lat: number; lon: number; detail?: string; en?: { detail?: string } }> = {

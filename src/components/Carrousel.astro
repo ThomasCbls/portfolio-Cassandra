@@ -7,9 +7,11 @@ import { lien, t, type Langue } from '../i18n';
 interface Props {
   travaux: Travail[];
   lang: Langue;
+  /** Numéro du chapitre, en chiffres romains */
+  numero: string;
 }
 
-const { travaux, lang } = Astro.props;
+const { travaux, lang, numero } = Astro.props;
 const tx = t(lang).carrousel;
 const chapitre = t(lang).chapitre;
 const total = travaux.length;
@@ -56,7 +58,7 @@ const ordinal = (n: number) => {
 >
   <div class="contenu carrousel-entete" data-reveal>
     <div>
-      <p class="surtitre"><span class="chapitre">{chapitre} III</span> {tx.surtitre}</p>
+      <p class="surtitre"><span class="chapitre">{chapitre} {numero}</span> {tx.surtitre}</p>
       <h2 id="titre-travaux" class="titre-section">{tx.titre}</h2>
     </div>
     <p class="compteur" aria-hidden="true">
@@ -853,8 +855,24 @@ const ordinal = (n: number) => {
     }
   }
 
-  /* Tablettes et téléphones */
+  /* Tablettes : le médaillon reste à côté du texte, en plus petit */
   @media (max-width: 56rem) {
+    .diapo {
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+      gap: 1.5rem clamp(1.5rem, 4vw, 2.5rem);
+    }
+
+    .diapo-medaillon {
+      width: min(100%, 15rem, 34vh);
+    }
+
+    .segment-titre {
+      display: none;
+    }
+  }
+
+  /* Téléphones : une colonne, sans médaillon ; le compteur passe sous le titre */
+  @media (max-width: 40rem) {
     .diapo {
       grid-template-columns: 1fr;
     }
@@ -868,8 +886,18 @@ const ordinal = (n: number) => {
       top: 30%;
     }
 
-    .segment-titre {
-      display: none;
+    .carrousel-entete {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .compteur-actuel {
+      font-size: 1.9rem;
+    }
+
+    .diapo-titre {
+      font-size: clamp(2.1rem, 10vw, 2.75rem);
     }
   }
 

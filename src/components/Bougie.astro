@@ -92,11 +92,13 @@ const tx = t(Astro.props.lang).bougie;
 </script>
 
 <style>
+  /* Bouton aux proportions exactes du dessin (24 × 40) : la bougie est centrée sur le texte voisin.
+     (En grille, le SVG prenait sa hauteur naturelle et débordait vers le bas.) */
   .bougie {
-    display: grid;
-    place-items: center;
-    width: 1.75rem;
-    height: 2.4rem;
+    display: block;
+    flex: none;
+    width: 1.56rem;
+    height: 2.6rem;
     padding: 0;
     border: 0;
     background: none;
@@ -105,6 +107,7 @@ const tx = t(Astro.props.lang).bougie;
   }
 
   .bougie svg {
+    display: block;
     width: 100%;
     height: 100%;
     overflow: visible;
