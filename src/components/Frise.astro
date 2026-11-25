@@ -1,7 +1,7 @@
 ---
-// Frise chronologique à deux vues :
-//  - « Siècles étudiés » : chaque travail placé sur la période historique qu'il étudie ;
-//  - « Mon parcours » : formation et expériences, sur l'échelle des années.
+// Frise chronologique, selon la vue demandée :
+//  - « siecles » : chaque travail placé sur la période historique qu'il étudie (chapitre « Siècles étudiés ») ;
+//  - « parcours » : formation et expériences, sur l'échelle des années (onglet Chronologie du chapitre « Parcours »).
 // Au survol, la période se projette sur toute la hauteur de la frise.
 import { lien, t, type Langue } from '../i18n';
 
@@ -25,12 +25,15 @@ interface Etape {
 }
 
 interface Props {
-  travaux: Travail[];
-  parcours: Etape[];
+  vue: 'siecles' | 'parcours';
+  travaux?: Travail[];
+  parcours?: Etape[];
   lang: Langue;
+  /** Numéro du chapitre : s'il est donné, la frise affiche son propre en-tête (titre et étendue) */
+  numero?: string;
 }
 
-const { travaux, parcours, lang } = Astro.props;
+const { vue, travaux = [], parcours = [], lang, numero } = Astro.props;
 const tx = t(lang).frise;
 const chapitre = t(lang).chapitre;
 
@@ -67,7 +70,7 @@ interface LigneBrute {
 
 interface Vue {
   id: string;
-  onglet: string;
+  nom: string;
   etendue: string;
   graduations: { gauche: number; libelle: string; mineure: boolean }[];
   traits: number[];
@@ -95,8 +98,8 @@ const placer = (lignes: LigneBrute[], origine: number, terme: number) => {
 
 const vues: Vue[] = [];
 
-// Vue 1 : siècles étudiés (au moins deux travaux avec une période, sinon la vue n'a pas de sens)
-if (travaux.length >= 2) {
+// Siècles étudiés : seulement les travaux dont la période est renseignée
+if (vue === 'siecles' && travaux.length > 0) {
   const pas = 50;
   const min = Math.min(...travaux.map((e) => e.debut));
   const max = Math.max(...travaux.map((e) => e.fin));
@@ -134,7 +137,7 @@ if (travaux.length >= 2) {
 
   vues.push({
     id: 'siecles',
-    onglet: tx.siecles,
+    nom: tx.titre,
     etendue: `${min} – ${max}`,
     graduations,
     traits,
@@ -147,8 +150,8 @@ if (travaux.length >= 2) {
   });
 }
 
-// Vue 2 : parcours (années universitaires : de septembre à juin)
-{
+// Parcours (années universitaires : de septembre à juin)
+if (vue === 'parcours' && parcours.length > 0) {
   // Les dates peuvent préciser le mois : « septembre 2026–2028 », « 2023–avril 2026 ».
   // Sans mois, une période commence en septembre et finit en juin (année universitaire).
   const mois = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
@@ -199,7 +202,7 @@ if (travaux.length >= 2) {
 
   vues.push({
     id: 'parcours',
-    onglet: tx.parcours,
+    nom: t(lang).parcours.chronologie,
     etendue: `${origine} – ${terme - 1}`,
     graduations,
     traits,
@@ -215,52 +218,34 @@ if (travaux.length >= 2) {
 }
 ---
 
-<figure class="frise" aria-labelledby="titre-frise" data-reveal>
-  <span id="parcours" class="ancre" aria-hidden="true"></span>
-  <div class="entete">
-    <div>
-      <p class="surtitre"><span class="chapitre">{chapitre} II</span> {tx.surtitre}</p>
-      <h2 id="titre-frise" class="titre-section">{tx.titre}</h2>
-    </div>
-    {/* Onglets seulement s'il y a plusieurs vues ; sinon, l'étendue de la seule vue */}
-    {vues.length === 1 && (
-      <p class="etendue-seule">
-        <span class="onglet-nom">{vues[0].onglet}</span>
-        <span class="onglet-etendue">{vues[0].etendue}</span>
-      </p>
-    )}
-    {vues.length > 1 && (
-    <div class="onglets" role="tablist" aria-label={tx.choisir}>
-      {
-        vues.map((v, i) => (
-          <button
-            type="button"
-            role="tab"
-            class="onglet"
-            id={`onglet-${v.id}`}
-            aria-controls={`vue-${v.id}`}
-            aria-selected={i === 0 ? 'true' : 'false'}
-            tabindex={i === 0 ? 0 : -1}
-          >
-            <span class="onglet-nom">{v.onglet}</span>
+{
+  vues.map((v) => (
+    <figure
+      class="frise"
+      aria-labelledby={numero ? `titre-${v.id}` : undefined}
+      aria-label={numero ? undefined : v.nom}
+      data-reveal
+    >
+      {numero && (
+        <div class="entete">
+          <div>
+            <p class="surtitre">
+              <span class="chapitre">
+                {chapitre} {numero}
+              </span>{' '}
+              {tx.surtitre}
+            </p>
+            <h2 id={`titre-${v.id}`} class="titre-section">
+              {tx.titre}
+            </h2>
+          </div>
+          <p class="etendue-seule">
             <span class="onglet-etendue">{v.etendue}</span>
-          </button>
-        ))
-      }
-    </div>
-    )}
-  </div>
+          </p>
+        </div>
+      )}
 
-  {
-    vues.map((v, i) => (
-      <div
-        class="vue"
-        id={`vue-${v.id}`}
-        role={vues.length > 1 ? 'tabpanel' : undefined}
-        aria-labelledby={vues.length > 1 ? `onglet-${v.id}` : undefined}
-        data-vue={v.id}
-        hidden={i !== 0}
-      >
+      <div class="vue" data-vue={v.id}>
         <div class="trace">
           <div class="bandes" aria-hidden="true">
             {v.bandes.map((b) => (
@@ -337,45 +322,9 @@ if (travaux.length >= 2) {
           ))}
         </p>
       </div>
-    ))
-  }
-</figure>
-
-<script>
-  document.querySelectorAll<HTMLElement>('.frise').forEach((frise) => {
-    const onglets = [...frise.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-    const vues = [...frise.querySelectorAll<HTMLElement>('[role="tabpanel"]')];
-    const n = onglets.length;
-
-    const activer = (i: number, focus = false) => {
-      onglets.forEach((o, j) => {
-        o.setAttribute('aria-selected', String(i === j));
-        o.tabIndex = i === j ? 0 : -1;
-      });
-      vues.forEach((v, j) => (v.hidden = i !== j));
-      if (focus) onglets[i].focus();
-    };
-
-    onglets.forEach((o, i) => {
-      o.addEventListener('click', () => activer(i));
-      o.addEventListener('keydown', (e) => {
-        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-        e.preventDefault();
-        e.stopPropagation();
-        activer((i + (e.key === 'ArrowRight' ? 1 : -1) + n) % n, true);
-      });
-    });
-
-    // Le lien « Parcours » du menu ouvre directement la vue parcours
-    const suivreAncre = () => {
-      if (location.hash !== '#parcours') return;
-      const i = vues.findIndex((v) => v.dataset.vue === 'parcours');
-      if (i >= 0) activer(i);
-    };
-    suivreAncre();
-    window.addEventListener('hashchange', suivreAncre);
-  });
-</script>
+    </figure>
+  ))
+}
 
 <style>
   .frise {
@@ -385,13 +334,7 @@ if (travaux.length >= 2) {
     margin: 0;
   }
 
-  /* Cible du lien « Parcours » : laisse la place de l'en-tête fixe */
-  .ancre {
-    position: absolute;
-    top: -9rem;
-  }
-
-  /* En-tête : titre à gauche, onglets à droite */
+  /* En-tête : titre à gauche, étendue à droite */
   .entete {
     position: relative;
     display: flex;
@@ -412,38 +355,6 @@ if (travaux.length >= 2) {
     background: linear-gradient(90deg, var(--or) 0%, rgba(201, 169, 110, 0.35) 45%, transparent 100%);
   }
 
-  .onglets {
-    display: flex;
-    gap: 0.5rem;
-    padding: 0.3rem;
-    border: 1px solid var(--filet);
-    border-radius: 999px;
-    background: rgba(13, 11, 8, 0.4);
-  }
-
-  .onglet {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.05rem;
-    padding: 0.45rem 1.25rem 0.5rem;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--gris-or);
-    font: inherit;
-    cursor: pointer;
-    transition:
-      background-color 300ms ease,
-      color 300ms ease;
-  }
-
-  .onglet-nom {
-    font-size: 0.68rem;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-  }
-
   .onglet-etendue {
     font-family: var(--f-titre);
     font-style: italic;
@@ -457,33 +368,6 @@ if (travaux.length >= 2) {
     flex-direction: column;
     align-items: flex-end;
     color: var(--gris-or);
-  }
-
-  .onglet:hover {
-    color: var(--ivoire);
-  }
-
-  .onglet[aria-selected='true'] {
-    background: linear-gradient(135deg, var(--or-clair), var(--or));
-    color: var(--fond);
-  }
-
-  /* Sans JavaScript, les deux vues s'affichent l'une sous l'autre */
-  :global(html:not(.js)) .vue[hidden] {
-    display: block;
-    margin-top: 3rem;
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    .vue:not([hidden]) {
-      animation: fondu 600ms ease both;
-    }
-
-    @keyframes fondu {
-      from {
-        opacity: 0;
-      }
-    }
   }
 
   /* Zone graphique */
@@ -1005,7 +889,8 @@ if (travaux.length >= 2) {
       display: none;
     }
 
-    .vue[data-vue='parcours'] .graduation:nth-child(even):not(:last-child) .annee {
+    /* Une année sur deux (la dernière comprise, sinon elle chevauche l'avant-dernière) */
+    .vue[data-vue='parcours'] .graduation:nth-child(even) .annee {
       display: none;
     }
 
@@ -1015,15 +900,6 @@ if (travaux.length >= 2) {
 
     .repere {
       font-size: 0.8125rem;
-    }
-
-    .onglets {
-      width: 100%;
-    }
-
-    .onglet {
-      flex: 1;
-      padding-inline: 0.5rem;
     }
   }
 

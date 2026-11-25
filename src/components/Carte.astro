@@ -3,6 +3,7 @@
 // rivières, anciennes provinces, villes repères, forêts, rose des vents, cartouche et échelle.
 // Les lieux viennent des champs `commune` (parcours dans profil.ts, travaux dans leurs fichiers)
 // et leurs coordonnées de `communes` (profil.ts). Tout est calculé ici, à la construction du site.
+// Affichée dans l'onglet « Cartographie » du chapitre « Parcours » (Parcours.astro).
 import { communes } from '../data/profil';
 import type { Travail } from '../data/travaux';
 import { lien, localiser, t, type Langue } from '../i18n';
@@ -23,7 +24,6 @@ interface Props {
 
 const { lang, parcours, travaux } = Astro.props;
 const tx = t(lang).carte;
-const chapitre = t(lang).chapitre;
 
 // ——— Projection : équirectangulaire, corrigée à la latitude moyenne ———
 const lonMin = -0.35;
@@ -126,8 +126,9 @@ const ident = (nom: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-');
 
-// Étiquette à gauche du point quand un autre lieu est juste à côté (Le Mans / Neuville)
-const aGauche = new Set(['Neuville-sur-Sarthe']);
+// Étiquette au-dessus du point quand un autre lieu est juste à côté (Le Mans / Neuville) :
+// à gauche, elle sortirait du cadre
+const auDessus = new Set(['Neuville-sur-Sarthe']);
 
 const lieux = Object.entries(communes)
   .map(([nom, c]) => {
@@ -140,7 +141,7 @@ const lieux = Object.entries(communes)
       detail: localiser(c, lang).detail,
       x,
       y,
-      gauche: aGauche.has(nom),
+      dessus: auDessus.has(nom),
       etapes,
       projets,
     };
@@ -173,6 +174,15 @@ const fil = (() => {
   return d;
 })();
 
+// Coordonnées du centre de la carte (mises à jour pendant le zoom)
+const dms = (deg: number) => {
+  const a = Math.abs(deg);
+  const m = Math.round((a % 1) * 60);
+  return `${Math.floor(a) + (m === 60 ? 1 : 0)}°${String(m % 60).padStart(2, '0')}′`;
+};
+const lonCentre = (lonMin + lonMax) / 2;
+const coordonneesCentre = `${dms((latMin + latMax) / 2)} N · ${dms(lonCentre)} ${lonCentre < 0 ? tx.ouest : 'E'}`;
+
 // Échelle : 20 km
 const echelle = (20 / 111.2) * k;
 
@@ -200,34 +210,40 @@ for (let x = 12; x < L - 12; x += pas * 2) graduations.push(`M${x} 12h${Math.min
 for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min(pas, H - 12 - y)}M${L - 12} ${y}v${Math.min(pas, H - 12 - y)}`);
 ---
 
-<section id="geographie" class="ecran geographie-ecran" aria-labelledby="titre-geographie">
-  <div class="contenu">
-    <div class="geographie-entete" data-reveal>
-      <p class="surtitre"><span class="chapitre">{chapitre} IV</span> {tx.surtitre}</p>
-      <h2 id="titre-geographie" class="titre-section">{tx.titre}</h2>
-    </div>
+<div class="atlas" data-reveal>
+  <figure class="carte-papier">
+    <div class="carte-cadre" style={`aspect-ratio: ${L} / ${H}`}>
+      <svg
+        class="plan"
+        viewBox={`0 0 ${L} ${H}`}
+        role="group"
+        aria-labelledby="legende-carte"
+        data-l={L}
+        data-h={H}
+        data-k={k}
+        data-cos={cosLat}
+        data-lon-min={lonMin}
+        data-lat-max={latMax}
+        data-locale={t(lang).locale}
+        data-ouest={tx.ouest}
+      >
+        <defs>
+          <clipPath id="carte-interieur">
+            <rect x="18" y="18" width={L - 36} height={H - 36}></rect>
+          </clipPath>
+        </defs>
 
-    <div class="atlas" data-reveal>
-      <figure class="carte-papier">
-        <div class="carte-cadre" style={`aspect-ratio: ${L} / ${H}`}>
-          <svg class="carte" viewBox={`0 0 ${L} ${H}`} role="img" aria-labelledby="legende-carte">
-            <defs>
-              <pattern id="carte-hachure" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
-                <path d="M0 0v6" class="hachure"></path>
-              </pattern>
-            </defs>
-
-            <!-- Cadre et bordure graduée -->
-            <rect x="6" y="6" width={L - 12} height={H - 12} class="cadre-ext"></rect>
-            <rect x="18" y="18" width={L - 36} height={H - 36} class="cadre-int"></rect>
-            <path d={graduations.join('')} class="graduation"></path>
-
+        <!-- Le « monde » : tout ce qui se zoome. Le cadre, la rose et le cartouche restent fixes. -->
+        <g clip-path="url(#carte-interieur)">
+          <g class="monde">
             <!-- Provinces -->
             {
               provinces.map((p) => (
-                <text x={f(p.pos[0])} y={f(p.pos[1])} class:list={['province', { debut: p.debut }]}>
-                  {p.nom}
-                </text>
+                <g transform={`translate(${f(p.pos[0])} ${f(p.pos[1])})`}>
+                  <g class="contre">
+                    <text class:list={['province', { debut: p.debut }]}>{p.nom}</text>
+                  </g>
+                </g>
               ))
             }
 
@@ -249,8 +265,8 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
             {
               rivieres.map((r) => (
                 <g class="riviere">
-                  <path id={`riv-${r.id}`} d={r.d} class="eau" style={`stroke-width: ${r.taille * 4}`} />
-                  <path d={r.d} class="cours" pathLength="1" style={`stroke-width: ${r.taille}`} />
+                  <path id={`riv-${r.id}`} d={r.d} class="eau" style={`--w: ${r.taille * 4}`} />
+                  <path d={r.d} class="cours" pathLength="1" style={`--w: ${r.taille}`} />
                   <text class="riviere-nom" dy="-7">
                     <textPath href={`#riv-${r.id}`} startOffset={`${r.etiquette}%`} text-anchor="middle">
                       {r.nom}
@@ -263,176 +279,311 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
             <!-- Villes repères -->
             {
               villes.map((v) => (
-                <g class="ville">
-                  <circle cx={f(v.pos[0])} cy={f(v.pos[1])} r="3.2" />
-                  <text x={f(v.pos[0] + 7)} y={f(v.pos[1] + 4)}>
-                    {v.nom}
-                  </text>
+                <g class="ville" transform={`translate(${f(v.pos[0])} ${f(v.pos[1])})`}>
+                  <g class="contre">
+                    <circle r="3.2" />
+                    <text x="7" y="4">
+                      {v.nom}
+                    </text>
+                  </g>
                 </g>
               ))
             }
 
             <!-- Fil du parcours -->
-            {suite.length > 1 && <path d={fil} class="fil" pathLength="1" />}
+            {suite.length > 1 && <path d={fil} class="fil" />}
 
-            <!-- Lieux du parcours et des travaux -->
+            <!-- Lieux du parcours et des travaux : un clic zoome sur le lieu -->
             {
               lieux.map((l, i) => (
-                <g class="lieu" data-lieu={l.id} style={`--i: ${i}`}>
-                  <circle cx={f(l.x)} cy={f(l.y)} r="15" class="lieu-halo" />
-                  <circle cx={f(l.x)} cy={f(l.y)} r="7.5" class="lieu-cire" />
-                  <circle cx={f(l.x)} cy={f(l.y)} r="2.6" class="lieu-coeur" />
-                  <text
-                    x={f(l.gauche ? l.x - 14 : l.x + 14)}
-                    y={f(l.y + 6)}
-                    class:list={['lieu-nom', { gauche: l.gauche }]}
-                  >
-                    {l.nom}
-                  </text>
+                <g
+                  class="lieu"
+                  data-lieu={l.id}
+                  data-x={f(l.x)}
+                  data-y={f(l.y)}
+                  transform={`translate(${f(l.x)} ${f(l.y)})`}
+                  role="button"
+                  tabindex="0"
+                  aria-label={l.nom}
+                  aria-controls={`fiche-${l.id}`}
+                  aria-pressed="false"
+                >
+                  <g class="contre">
+                    <g class="lieu-pose" style={`--i: ${i}`}>
+                      <circle r="15" class="lieu-onde" />
+                      <circle r="25" class="lieu-anneau" pathLength="1" />
+                      <circle r="15" class="lieu-halo" />
+                      <circle r="7.5" class="lieu-cire" />
+                      <circle r="2.6" class="lieu-coeur" />
+                      <text x={l.dessus ? 0 : 14} y={l.dessus ? -15 : 6} class:list={['lieu-nom', { dessus: l.dessus }]}>
+                        {l.nom}
+                      </text>
+                    </g>
+                  </g>
                 </g>
               ))
             }
+          </g>
+        </g>
 
-            <!-- Rose des vents -->
-            <g class="rose">
-              <circle cx={rose.x} cy={rose.y} r={rose.r * 0.72} class="rose-cercle"></circle>
-              <circle cx={rose.x} cy={rose.y} r={rose.r * 0.62} class="rose-cercle"></circle>
-              {
-                branches.map((b) => (
-                  <>
-                    <path d={b.claire} class="rose-claire" />
-                    <path d={b.sombre} class="rose-sombre" />
-                  </>
-                ))
-              }
-              <text x={rose.x} y={rose.y - rose.r - 8} class="rose-nord">N</text>
-            </g>
+        <!-- Cadre et bordure graduée -->
+        <rect x="6" y="6" width={L - 12} height={H - 12} class="cadre-ext"></rect>
+        <rect x="18" y="18" width={L - 36} height={H - 36} class="cadre-int"></rect>
+        <path d={graduations.join('')} class="graduation"></path>
 
-            <!-- Cartouche, avec l'échelle -->
-            <g class="cartouche">
-              <rect x="34" y="34" width="168" height="150" class="cartouche-fond"></rect>
-              <rect x="40" y="40" width="156" height="138" class="cartouche-filet"></rect>
-              <text x="118" y="76" class="cartouche-titre">{tx.cartouche[0]}</text>
-              <text x="118" y="102" class="cartouche-ligne">{tx.cartouche[1]}</text>
-              <text x="118" y="122" class="cartouche-ligne">{tx.cartouche[2]}</text>
-              <g transform={`translate(${f(118 - echelle / 2)} 150)`}>
-                <path d={`M0 0h${f(echelle)}M0 -4v8M${f(echelle / 2)} -3v6M${f(echelle)} -4v8`} class="echelle"></path>
-                <rect x="0" y="-2" width={f(echelle / 2)} height="4" class="echelle-plein"></rect>
-                <text x={f(echelle / 2)} y="20" class="echelle-texte">{tx.echelle}</text>
-              </g>
-            </g>
-          </svg>
-
-          <!-- Boutons posés sur les lieux (accessibles au clavier) -->
+        <!-- Rose des vents : elle oscille quand la carte se déplace -->
+        <g class="rose" style={`transform-origin: ${rose.x}px ${rose.y}px`}>
+          <circle cx={rose.x} cy={rose.y} r={rose.r * 0.72} class="rose-cercle"></circle>
+          <circle cx={rose.x} cy={rose.y} r={rose.r * 0.62} class="rose-cercle"></circle>
           {
-            lieux.map((l) => (
-              <button
-                type="button"
-                class="lieu-bouton"
-                data-lieu={l.id}
-                aria-controls={`fiche-${l.id}`}
-                aria-pressed="false"
-                style={`left: ${((l.x / L) * 100).toFixed(2)}%; top: ${((l.y / H) * 100).toFixed(2)}%`}
-              >
-                <span class="visuellement-cache">{l.nom}</span>
-              </button>
+            branches.map((b) => (
+              <>
+                <path d={b.claire} class="rose-claire" />
+                <path d={b.sombre} class="rose-sombre" />
+              </>
             ))
           }
-        </div>
-        <figcaption id="legende-carte" class="carte-legende">
-          {tx.legende}. <span class="fil-legende"><span aria-hidden="true" class="fil-trait"></span>{tx.itineraire}</span> · {tx.note}.
-        </figcaption>
-      </figure>
+          <text x={rose.x} y={rose.y - rose.r - 8} class="rose-nord">N</text>
+        </g>
 
-      <div class="fiches-lieux" aria-live="polite">
-        <p class="invitation-lieu">
-          <span class="invitation-losange" aria-hidden="true"></span>
-          {tx.invitation}
-        </p>
-        {
-          lieux.map((l) => (
-            <article class="fiche-lieu" id={`fiche-${l.id}`} data-lieu={l.id} hidden>
-              <h3>{l.nom}</h3>
-              {l.detail && <p class="lieu-detail">{l.detail}</p>}
-              {l.etapes.length > 0 && (
-                <>
-                  <p class="lieu-rubrique">{tx.parcours}</p>
-                  <ul>
-                    {l.etapes.map((e) => (
-                      <li>
-                        <span class="lieu-dates">{e.dates}</span>
-                        <span class="lieu-titre">{e.titre}</span>
-                        <span class="lieu-lieu">{e.lieu}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              {l.projets.length > 0 && (
-                <>
-                  <p class="lieu-rubrique">{tx.travaux}</p>
-                  <ul>
-                    {l.projets.map((p) => (
-                      <li>
-                        <a href={lien(lang, `/travaux/${p.id}/`)}>
-                          {p.data.titre} <span aria-hidden="true">→</span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </article>
-          ))
-        }
-      </div>
+        <!-- Cartouche, avec l'échelle (son libellé suit le zoom) -->
+        <g class="cartouche">
+          <rect x="34" y="34" width="168" height="150" class="cartouche-fond"></rect>
+          <rect x="40" y="40" width="156" height="138" class="cartouche-filet"></rect>
+          <text x="118" y="76" class="cartouche-titre">{tx.cartouche[0]}</text>
+          <text x="118" y="102" class="cartouche-ligne">{tx.cartouche[1]}</text>
+          <text x="118" y="122" class="cartouche-ligne">{tx.cartouche[2]}</text>
+          <g transform={`translate(${f(118 - echelle / 2)} 150)`}>
+            <path d={`M0 0h${f(echelle)}M0 -4v8M${f(echelle / 2)} -3v6M${f(echelle)} -4v8`} class="echelle"></path>
+            <rect x="0" y="-2" width={f(echelle / 2)} height="4" class="echelle-plein"></rect>
+            <text x={f(echelle / 2)} y="20" class="echelle-texte">{tx.echelle}</text>
+          </g>
+        </g>
+
+        <!-- Coordonnées du centre de la vue -->
+        <text x={L - 36} y={H - 38} class="coordonnees">{coordonneesCentre}</text>
+      </svg>
+
+      <button type="button" class="vue-ensemble" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path>
+        </svg>
+        {tx.ensemble}
+      </button>
     </div>
+    <figcaption id="legende-carte" class="carte-legende">
+      {tx.legende}. <span class="fil-legende"><span aria-hidden="true" class="fil-trait"></span>{tx.itineraire}</span> · {tx.note}.
+    </figcaption>
+  </figure>
+
+  <div class="fiches-lieux" aria-live="polite">
+    <p class="invitation-lieu">
+      <span class="invitation-losange" aria-hidden="true"></span>
+      {tx.invitation}
+    </p>
+    {
+      lieux.map((l) => (
+        <article class="fiche-lieu" id={`fiche-${l.id}`} data-lieu={l.id} hidden>
+          <h3>{l.nom}</h3>
+          {l.detail && <p class="lieu-detail">{l.detail}</p>}
+          {l.etapes.length > 0 && (
+            <>
+              <p class="lieu-rubrique">{tx.parcours}</p>
+              <ul>
+                {l.etapes.map((e) => (
+                  <li>
+                    <span class="lieu-dates">{e.dates}</span>
+                    <span class="lieu-titre">{e.titre}</span>
+                    <span class="lieu-lieu">{e.lieu}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {l.projets.length > 0 && (
+            <>
+              <p class="lieu-rubrique">{tx.travaux}</p>
+              <ul>
+                {l.projets.map((p) => (
+                  <li>
+                    <a href={lien(lang, `/travaux/${p.id}/`)}>
+                      {p.data.titre} <span aria-hidden="true">→</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </article>
+      ))
+    }
   </div>
-</section>
+</div>
 
 <script>
-  document.querySelectorAll<HTMLElement>('.geographie-ecran').forEach((ecran) => {
-    const boutons = [...ecran.querySelectorAll<HTMLButtonElement>('.lieu-bouton')];
-    const reperes = [...ecran.querySelectorAll<SVGGElement>('.lieu')];
-    const fiches = [...ecran.querySelectorAll<HTMLElement>('.fiche-lieu')];
-    const invitation = ecran.querySelector<HTMLElement>('.invitation-lieu');
+  // ——— Carte animée : un clic sur un lieu fait voler la vue jusqu'à lui ———
+  // La vue (centre x, y et zoom z) est appliquée au groupe « monde ». Les étiquettes et les
+  // pastilles sont contre-zoomées (--inv) pour garder leur taille ; l'échelle et les
+  // coordonnées du cartouche suivent le mouvement.
+  const reduit = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ZOOM = 3.2;
+
+  document.querySelectorAll<HTMLElement>('.atlas').forEach((atlas) => {
+    const plan = atlas.querySelector<SVGSVGElement>('svg.plan');
+    const monde = plan?.querySelector<SVGGElement>('.monde');
+    if (!plan || !monde) return;
+
+    const d = plan.dataset;
+    const L = Number(d.l);
+    const H = Number(d.h);
+    const k = Number(d.k);
+    const cos = Number(d.cos);
+    const lonMin = Number(d.lonMin);
+    const latMax = Number(d.latMax);
+    const nombre = new Intl.NumberFormat(d.locale, { maximumFractionDigits: 1 });
+
+    const lieux = [...plan.querySelectorAll<SVGGElement>('.lieu')];
+    const fiches = [...atlas.querySelectorAll<HTMLElement>('.fiche-lieu')];
+    const invitation = atlas.querySelector<HTMLElement>('.invitation-lieu');
+    const ensemble = atlas.querySelector<HTMLButtonElement>('.vue-ensemble');
+    const rose = plan.querySelector<SVGGElement>('.rose');
+    const echelle = plan.querySelector<SVGTextElement>('.echelle-texte');
+    const coordonnees = plan.querySelector<SVGTextElement>('.coordonnees');
+
+    type Vue = { x: number; y: number; z: number };
+    let vue: Vue = { x: L / 2, y: H / 2, z: 1 };
+    let image = 0;
     let actif = '';
+
+    // La vue ne sort jamais de la carte
+    const borner = (v: Vue): Vue => {
+      const z = Math.max(1, v.z);
+      const dl = L / (2 * z);
+      const dh = H / (2 * z);
+      return { x: Math.min(L - dl, Math.max(dl, v.x)), y: Math.min(H - dh, Math.max(dh, v.y)), z };
+    };
+
+    const dms = (deg: number) => {
+      const a = Math.abs(deg);
+      const m = Math.round((a % 1) * 60);
+      return `${Math.floor(a) + (m === 60 ? 1 : 0)}°${String(m % 60).padStart(2, '0')}′`;
+    };
+
+    const appliquer = (v: Vue) => {
+      monde.setAttribute(
+        'transform',
+        `translate(${(L / 2 - v.x * v.z).toFixed(2)} ${(H / 2 - v.y * v.z).toFixed(2)}) scale(${v.z.toFixed(4)})`,
+      );
+      plan.style.setProperty('--inv', String(1 / v.z));
+      plan.style.setProperty('--inv-doux', String(v.z ** -0.6));
+      if (echelle) echelle.textContent = `${nombre.format(20 / v.z)} km`;
+      if (coordonnees) {
+        const lon = v.x / (cos * k) + lonMin;
+        const lat = latMax - v.y / k;
+        coordonnees.textContent = `${dms(lat)} N · ${dms(lon)} ${lon < 0 ? d.ouest : 'E'}`;
+      }
+    };
+
+    // Rejoue une animation CSS liée à une classe
+    const relancer = (el: Element | null | undefined, classe: string) => {
+      if (!el) return;
+      el.classList.remove(classe);
+      void el.getBoundingClientRect();
+      el.classList.add(classe);
+    };
+
+    const voler = (cible: Vue, arrivee?: () => void) => {
+      cible = borner(cible);
+      cancelAnimationFrame(image);
+      if (reduit) {
+        vue = cible;
+        appliquer(vue);
+        arrivee?.();
+        return;
+      }
+      const depart = { ...vue };
+      // Plus le trajet est long, plus la vue prend de la hauteur en chemin
+      const distance = Math.hypot(cible.x - depart.x, cible.y - depart.y) * Math.min(depart.z, cible.z);
+      const recul = Math.min(0.4, distance / L);
+      const duree = 1000 + Math.min(800, distance * 1.4);
+      const debut = performance.now();
+      relancer(rose, 'oscille');
+      atlas.classList.add('en-vol');
+
+      const pas = (maintenant: number) => {
+        const p = Math.min(1, (maintenant - debut) / duree);
+        const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        const z = depart.z * Math.pow(cible.z / depart.z, e) * (1 - recul * Math.sin(Math.PI * e));
+        vue = borner({ x: depart.x + (cible.x - depart.x) * e, y: depart.y + (cible.y - depart.y) * e, z });
+        appliquer(vue);
+        if (p < 1) {
+          image = requestAnimationFrame(pas);
+          return;
+        }
+        vue = cible;
+        appliquer(vue);
+        atlas.classList.remove('en-vol');
+        arrivee?.();
+      };
+      image = requestAnimationFrame(pas);
+    };
 
     const choisir = (id: string) => {
       if (id === actif) return;
       actif = id;
-      boutons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lieu === id)));
-      reperes.forEach((r) => r.classList.toggle('actif', r.dataset.lieu === id));
+      lieux.forEach((l) => {
+        const oui = l.dataset.lieu === id;
+        l.setAttribute('aria-pressed', String(oui));
+        l.classList.toggle('actif', oui);
+        l.classList.remove('arrive');
+      });
       fiches.forEach((f) => (f.hidden = f.dataset.lieu !== id));
       if (invitation) invitation.hidden = !!id;
+      if (ensemble) ensemble.hidden = !id;
+      atlas.classList.toggle('zoome', !!id);
+
+      const lieu = lieux.find((l) => l.dataset.lieu === id);
+      if (lieu) voler({ x: Number(lieu.dataset.x), y: Number(lieu.dataset.y), z: ZOOM }, () => relancer(lieu, 'arrive'));
+      else voler({ x: L / 2, y: H / 2, z: 1 });
     };
 
-    boutons.forEach((b) => {
-      const id = b.dataset.lieu ?? '';
-      b.addEventListener('click', () => choisir(id));
-      b.addEventListener('focus', () => choisir(id));
-      b.addEventListener('pointerenter', (e) => {
-        if (e.pointerType === 'mouse') choisir(id);
+    lieux.forEach((l) => {
+      const id = l.dataset.lieu ?? '';
+      l.addEventListener('click', () => choisir(id));
+      l.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        choisir(id);
       });
-      // Survol du bouton : le repère gravé s'anime
-      b.addEventListener('pointerenter', () => reperes.find((r) => r.dataset.lieu === id)?.classList.add('survol'));
-      b.addEventListener('pointerleave', () => reperes.find((r) => r.dataset.lieu === id)?.classList.remove('survol'));
     });
+
+    // Retour à la vue d'ensemble : bouton ou touche Échap
+    ensemble?.addEventListener('click', () => {
+      const precedent = lieux.find((l) => l.dataset.lieu === actif);
+      choisir('');
+      precedent?.focus({ preventScroll: true });
+    });
+
+    atlas.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && actif) choisir('');
+    });
+
+    // Étiquettes lisibles quelle que soit la taille d'affichage de la carte
+    const ajuster = () => {
+      const largeur = plan.getBoundingClientRect().width;
+      if (largeur > 0) plan.style.setProperty('--etiquettes', String(Math.min(2, Math.max(1, 720 / largeur))));
+    };
+    if ('ResizeObserver' in window) new ResizeObserver(ajuster).observe(plan);
+    ajuster();
+
+    appliquer(vue);
   });
 </script>
 
 <style>
-  .geographie-entete {
-    text-align: center;
-  }
-
-  .geographie-entete .titre-section {
-    margin-inline: auto;
-  }
-
   .atlas {
     display: grid;
-    grid-template-columns: minmax(0, auto) minmax(15rem, 21rem);
+    grid-template-columns: minmax(0, auto) minmax(15rem, 20rem);
     justify-content: center;
     align-items: center;
     gap: 2rem clamp(1.5rem, 4vw, 3.5rem);
@@ -443,7 +594,8 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
   .carte-papier {
     position: relative;
     margin: 0;
-    width: min(100%, calc((100svh - 19rem) * 1.045), 46rem);
+    /* Tient dans la hauteur de l'écran, sans devenir minuscule sur un téléphone en paysage */
+    width: min(100%, max(calc((100svh - 17rem) * 1.045), 21rem), 50rem);
     padding: clamp(0.5rem, 1.5vw, 0.9rem);
     background: radial-gradient(120% 90% at 30% 20%, #f4e9d0 0%, #e9dab7 55%, #d6c194 100%);
     border-radius: 2px;
@@ -451,13 +603,16 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
       inset 0 0 70px rgba(120, 80, 30, 0.35),
       inset 0 0 0 1px rgba(90, 60, 20, 0.15),
       0 30px 60px -18px rgba(0, 0, 0, 0.95);
-    rotate: 0.6deg;
+    /* Pas de rotation : un parchemin penché rend flous les traits fins et les petits textes */
+    isolation: isolate;
   }
 
+  /* Grain du papier, sous l'encre (au-dessus, il brouillait les traits) */
   .carte-papier::before {
     content: '';
     position: absolute;
     inset: 0;
+    z-index: -1;
     border-radius: inherit;
     opacity: 0.35;
     mix-blend-mode: multiply;
@@ -469,11 +624,28 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
     position: relative;
   }
 
-  .carte {
+  /* Rendu net des traits et des textes de la carte */
+  .plan {
+    shape-rendering: geometricPrecision;
+    text-rendering: geometricPrecision;
+  }
+
+  /* « plan » et non « carte » : .carte est la classe globale des panneaux sombres */
+  .plan {
+    --inv: 1;
+    --inv-doux: 1;
+    /* Grossit les étiquettes quand la carte est affichée petite (calculé dans le script) */
+    --etiquettes: 1;
     display: block;
     width: 100%;
     height: 100%;
     font-family: var(--f-titre);
+    overflow: hidden;
+  }
+
+  /* Contre-zoom : étiquettes et pastilles gardent leur taille quand la carte se rapproche */
+  .contre {
+    transform: scale(calc(var(--inv) * var(--etiquettes)));
   }
 
   /* Encres */
@@ -524,6 +696,7 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
   .eau {
     fill: none;
     stroke: rgba(80, 120, 140, 0.22);
+    stroke-width: calc(var(--w) * var(--inv-doux) * 1px);
     stroke-linecap: round;
     stroke-linejoin: round;
   }
@@ -531,14 +704,15 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
   .cours {
     fill: none;
     stroke: #34525f;
+    stroke-width: calc(var(--w) * var(--inv-doux) * 1px);
     stroke-linecap: round;
     stroke-linejoin: round;
   }
 
   .riviere-nom {
-    font-size: 14px;
+    font-size: calc(14px * var(--inv-doux) * var(--etiquettes));
     font-style: italic;
-    letter-spacing: 1.5px;
+    letter-spacing: calc(1.5px * var(--inv-doux));
     fill: #34525f;
   }
 
@@ -549,7 +723,7 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
   }
 
   .ville text {
-    font-size: 13px;
+    font-size: 15px;
     font-style: italic;
     fill: rgba(58, 42, 26, 0.8);
   }
@@ -557,10 +731,55 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
   .fil {
     fill: none;
     stroke: #8f2219;
-    stroke-width: 1.6;
+    stroke-width: calc(1.6px * var(--inv-doux));
     stroke-linecap: round;
-    stroke-dasharray: 0.006 0.008;
+    stroke-dasharray: calc(7px * var(--inv)) calc(9px * var(--inv));
     opacity: 0.75;
+  }
+
+  /* Lieux : de vrais boutons (clic, Entrée, Espace) */
+  .lieu {
+    cursor: pointer;
+    outline: none;
+    transition: opacity 400ms ease;
+  }
+
+  /* Zoomé sur un lieu : les autres s'estompent */
+  .atlas.zoome .lieu:not(.actif) {
+    opacity: 0.5;
+  }
+
+  .atlas.zoome .lieu:not(.actif):hover {
+    opacity: 1;
+  }
+
+  .lieu:focus-visible .lieu-halo {
+    stroke: #8f2219;
+    stroke-width: 2;
+  }
+
+  .lieu-onde {
+    fill: none;
+    stroke: #8f2219;
+    stroke-width: 1.5;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  /* Anneau gravé autour du lieu choisi */
+  .lieu-anneau {
+    fill: none;
+    stroke: #8f2219;
+    stroke-width: 1.2;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    opacity: 0;
+  }
+
+  .lieu.actif .lieu-anneau {
+    opacity: 1;
+    stroke-dashoffset: 0;
   }
 
   /* Lieux : pastille de cire rouge cerclée d'or */
@@ -596,12 +815,12 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
     transition: fill 250ms ease;
   }
 
-  .lieu-nom.gauche {
-    text-anchor: end;
+  .lieu-nom.dessus {
+    text-anchor: middle;
   }
 
   .lieu.actif .lieu-halo,
-  .lieu.survol .lieu-halo {
+  .lieu:hover .lieu-halo {
     transform: scale(1.5);
     fill: rgba(143, 34, 25, 0.22);
   }
@@ -677,20 +896,62 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
     fill: #2b2117;
   }
 
-  /* Zones cliquables posées sur les lieux */
-  .lieu-bouton {
-    position: absolute;
-    width: 2.6rem;
-    height: 2.6rem;
-    translate: -50% -50%;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: transparent;
-    cursor: pointer;
+  /* Coordonnées du centre de la vue, dans la marge du cadre */
+  .coordonnees {
+    font-size: calc(16px * var(--etiquettes));
+    font-style: italic;
+    letter-spacing: 1px;
+    text-anchor: end;
+    fill: #4a3622;
+    font-variant-numeric: tabular-nums;
+    paint-order: stroke;
+    stroke: rgba(244, 233, 208, 0.9);
+    stroke-width: 4px;
+    stroke-linejoin: round;
   }
 
-  .lieu-bouton:focus-visible {
+  /* Retour à la vue d'ensemble, posé sur la carte comme une étiquette */
+  .vue-ensemble {
+    position: absolute;
+    left: 4.5%;
+    bottom: 4.5%;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.85rem 0.4rem 0.65rem;
+    border: 1px solid #4a3622;
+    border-radius: 2px;
+    background: rgba(244, 233, 208, 0.94);
+    box-shadow: 0 6px 14px -8px rgba(40, 25, 10, 0.6);
+    color: #2b2117;
+    font-family: var(--f-titre);
+    font-size: 0.95rem;
+    font-style: italic;
+    cursor: pointer;
+    transition:
+      background-color 250ms ease,
+      color 250ms ease;
+  }
+
+  .vue-ensemble[hidden] {
+    display: none;
+  }
+
+  .vue-ensemble svg {
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+
+  .vue-ensemble:hover {
+    background: #8f2219;
+    color: #f4e9d0;
+  }
+
+  .vue-ensemble:focus-visible {
     outline: 2px solid #8f2219;
     outline-offset: 2px;
   }
@@ -730,6 +991,10 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
     font-style: italic;
     font-size: 1.3rem;
     color: var(--gris-or);
+  }
+
+  .invitation-lieu[hidden] {
+    display: none;
   }
 
   .invitation-losange {
@@ -825,7 +1090,7 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
       animation: graver 1800ms cubic-bezier(0.65, 0, 0.35, 1) 200ms backwards;
     }
 
-    :global(.js) .atlas:not(.revele) :is(.fil, .lieu) {
+    :global(.js) .atlas:not(.revele) :is(.fil, .lieu-pose) {
       opacity: 0;
     }
 
@@ -833,7 +1098,7 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
       animation: apparaitre-carte 1200ms ease 1400ms backwards;
     }
 
-    :global(.js) .atlas.revele .lieu {
+    :global(.js) .atlas.revele .lieu-pose {
       animation: poser 700ms cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
       animation-delay: calc(1100ms + var(--i) * 140ms);
       transform-box: fill-box;
@@ -843,6 +1108,73 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
     /* Les lieux palpitent doucement tant qu'aucun n'est choisi */
     .atlas:not(:has(.lieu.actif)) .lieu-halo {
       animation: palpiter 2.6s ease-in-out infinite;
+    }
+
+    /* Arrivée sur un lieu : l'anneau se grave, une onde se propage */
+    .lieu.actif .lieu-anneau {
+      animation: graver 900ms cubic-bezier(0.65, 0, 0.35, 1) 300ms backwards;
+    }
+
+    .lieu.arrive .lieu-onde {
+      animation: onde-carte 1300ms cubic-bezier(0.2, 0.7, 0.2, 1) 2;
+    }
+
+    .lieu.arrive .lieu-cire {
+      animation: tamponner 500ms cubic-bezier(0.3, 1.6, 0.5, 1);
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+
+    /* La rose des vents oscille pendant le déplacement, comme une aiguille de boussole */
+    .rose.oscille {
+      animation: osciller 1600ms cubic-bezier(0.3, 0.7, 0.3, 1);
+    }
+
+    /* La fiche du lieu glisse depuis la carte */
+    .fiche-lieu:not([hidden]) {
+      animation: glisser 600ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+    }
+
+    @keyframes onde-carte {
+      from {
+        opacity: 0.85;
+        transform: scale(1);
+      }
+      to {
+        opacity: 0;
+        transform: scale(3.4);
+      }
+    }
+
+    @keyframes tamponner {
+      from {
+        transform: scale(1.6);
+      }
+    }
+
+    @keyframes osciller {
+      0% {
+        rotate: 0deg;
+      }
+      25% {
+        rotate: -22deg;
+      }
+      50% {
+        rotate: 12deg;
+      }
+      72% {
+        rotate: -5deg;
+      }
+      100% {
+        rotate: 0deg;
+      }
+    }
+
+    @keyframes glisser {
+      from {
+        opacity: 0;
+        transform: translateX(-1.5rem);
+      }
     }
 
     @keyframes graver {
@@ -879,7 +1211,6 @@ for (let y = 12; y < H - 12; y += pas * 2) graduations.push(`M12 ${y}v${Math.min
 
     .carte-papier {
       width: min(100%, 34rem);
-      rotate: none;
     }
 
     .fiches-lieux {

@@ -97,7 +97,7 @@ const absolu = (chemin: string) => (Astro.site ? new URL(chemin, Astro.site).hre
         )
       }
       <div class="entete-droite">
-        <nav aria-label={tx.navPrincipale}>
+        <nav id="menu-principal" aria-label={tx.navPrincipale}>
           <a href={lien(lang, '/#parcours')}>{tx.nav.parcours}</a>
           <a href={lien(lang, '/#travaux')}>{tx.nav.travaux}</a>
           <a href={lien(lang, '/#competences')}>{tx.nav.competences}</a>
@@ -108,6 +108,11 @@ const absolu = (chemin: string) => (Astro.site ? new URL(chemin, Astro.site).hre
             {tx.autreLangue.court}
           </a>
           <Bougie lang={lang} />
+          <!-- Écrans étroits : la navigation s'ouvre dans un panneau -->
+          <button type="button" class="menu-bouton" aria-expanded="false" aria-controls="menu-principal">
+            <span class="menu-traits" aria-hidden="true"><span></span><span></span></span>
+            <span class="menu-libelle">{tx.menu}</span>
+          </button>
         </span>
       </div>
     </header>
@@ -126,6 +131,29 @@ const absolu = (chemin: string) => (Astro.site ? new URL(chemin, Astro.site).hre
       )
     }
     <Loupe />
+    <script>
+      // Menu des écrans étroits : s'ouvre et se ferme au bouton, se referme au choix d'un lien,
+      // à la touche Échap ou au clic en dehors
+      const entete = document.querySelector<HTMLElement>('.entete');
+      const boutonMenu = entete?.querySelector<HTMLButtonElement>('.menu-bouton');
+      const ouvrirMenu = (ouvert: boolean) => {
+        if (!entete || !boutonMenu) return;
+        entete.classList.toggle('menu-ouvert', ouvert);
+        boutonMenu.setAttribute('aria-expanded', String(ouvert));
+      };
+      boutonMenu?.addEventListener('click', () => ouvrirMenu(!entete?.classList.contains('menu-ouvert')));
+      entete?.querySelectorAll('nav a').forEach((a) => a.addEventListener('click', () => ouvrirMenu(false)));
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && entete?.classList.contains('menu-ouvert')) {
+          ouvrirMenu(false);
+          boutonMenu?.focus();
+        }
+      });
+      document.addEventListener('click', (e) => {
+        if (entete?.classList.contains('menu-ouvert') && !entete.contains(e.target as Node)) ouvrirMenu(false);
+      });
+      window.matchMedia('(min-width: 68.001rem)').addEventListener('change', (m) => m.matches && ouvrirMenu(false));
+    </script>
     <script>
       // Apparition au défilement : chaque élément [data-reveal] reçoit .revele en entrant dans l'écran,
       // et le perd quand il en sort complètement : ses animations se rejouent au retour.
@@ -231,37 +259,136 @@ const absolu = (chemin: string) => (Astro.site ? new URL(chemin, Astro.site).hre
     letter-spacing: 0.16em;
   }
 
-  /* Téléphones : nom, langue et bougie sur la première ligne, menu sur la seconde */
-  @media (max-width: 40rem) {
+  .menu-bouton {
+    display: none;
+  }
+
+  /* Écrans étroits (tablettes, téléphones, petits portables) : une seule ligne
+     (nom, langue, bougie, bouton Menu) ; la navigation s'ouvre dans un panneau sous l'en-tête */
+  @media (max-width: 68rem) {
+    .entete {
+      flex-wrap: nowrap;
+      gap: 1rem;
+      padding-block: clamp(0.8rem, 2vh, 1.2rem);
+    }
+
+    .signature {
+      font-size: clamp(1.45rem, 5.5vw, 1.8rem);
+      white-space: nowrap;
+    }
+
     .entete-droite {
-      display: contents;
+      flex-wrap: nowrap;
     }
 
     .outils-entete {
-      order: 1;
-      padding-left: 0;
-      border-left: 0;
+      gap: clamp(0.6rem, 2.5vw, 0.9rem);
     }
 
-    nav {
-      order: 2;
+    .menu-bouton {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      min-height: 2.75rem;
+      padding: 0 0 0 0.25rem;
+      border: 0;
+      background: none;
+      color: var(--or-clair);
+      font: inherit;
+      font-size: 0.72rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .menu-traits {
+      position: relative;
+      display: grid;
+      gap: 5px;
+      width: 1.35rem;
+    }
+
+    .menu-traits span {
+      height: 1px;
+      background: currentColor;
+      transition:
+        transform 300ms ease,
+        width 300ms ease;
+    }
+
+    .menu-traits span:last-child {
+      width: 70%;
+      justify-self: end;
+    }
+
+    .menu-ouvert .menu-traits span:first-child {
+      transform: translateY(3px) rotate(45deg);
+    }
+
+    .menu-ouvert .menu-traits span:last-child {
       width: 100%;
-      justify-content: space-between;
+      transform: translateY(-3px) rotate(-45deg);
     }
-  }
 
-  @media (max-width: 30rem) {
     nav {
-      gap: 0.75rem;
+      position: absolute;
+      top: calc(100% - 0.25rem);
+      left: calc(var(--gouttiere) + 0.5rem);
+      right: calc(var(--gouttiere) + 0.5rem);
+      flex-direction: column;
+      gap: 0;
+      padding: 0.5rem 1.5rem;
+      border: 1px solid var(--filet);
+      background: var(--carte);
+      box-shadow: 0 24px 50px -20px rgba(0, 0, 0, 0.85);
+      opacity: 0;
+      visibility: hidden;
+      translate: 0 -0.5rem;
+      transition:
+        opacity 250ms ease,
+        translate 250ms ease,
+        visibility 0s 250ms;
+    }
+
+    .menu-ouvert nav {
+      opacity: 1;
+      visibility: visible;
+      translate: none;
+      transition:
+        opacity 250ms ease,
+        translate 250ms ease;
     }
 
     nav a {
-      font-size: 0.62rem;
-      letter-spacing: 0.1em;
+      padding: 0.95rem 0;
+      font-size: 0.85rem;
+      background: none;
     }
 
-    .entete-droite {
-      gap: 0.5rem 0.75rem;
+    nav a + a {
+      border-top: 1px solid var(--filet-pale);
+    }
+
+    nav a:hover {
+      background: none;
+    }
+
+    /* Sans JavaScript, le menu reste affiché en dessous */
+    :global(html:not(.js)) nav {
+      position: static;
+      opacity: 1;
+      visibility: visible;
+      translate: none;
+    }
+  }
+
+  @media (max-width: 26rem) {
+    .menu-libelle {
+      display: none;
+    }
+
+    .outils-entete {
+      padding-left: 0.6rem;
     }
   }
 

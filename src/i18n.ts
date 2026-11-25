@@ -22,6 +22,7 @@ const fr = {
   ogLocale: 'fr_FR',
   evitement: 'Aller au contenu',
   navPrincipale: 'Navigation principale',
+  menu: 'Menu',
   nav: { parcours: 'Parcours', travaux: 'Travaux', competences: 'Compétences', contact: 'Contact' },
   autreLangue: { court: 'EN', long: 'English version' },
   bougie: { versClair: 'Souffler la bougie : passer au thème clair', versSombre: 'Rallumer la bougie : passer au thème sombre' },
@@ -31,9 +32,9 @@ const fr = {
   sections: 'Sections de la page',
   ecrans: {
     accueil: 'Introduction',
-    chronologie: 'Chronologie',
+    parcours: 'Parcours',
+    siecles: 'Siècles étudiés',
     travaux: 'Travaux',
-    geographie: 'Géographie',
     competences: 'Compétences',
     bibliotheque: 'Bibliothèque',
     contact: 'Contact',
@@ -50,13 +51,20 @@ const fr = {
   touchezMedaillon: 'Touchez le médaillon',
   defiler: 'Défiler',
 
-  // Chronologie
+  // Parcours : chronologie et cartographie
+  parcours: {
+    surtitre: 'Formation et expériences',
+    titre: 'Parcours',
+    choisir: 'Choisir la vue du parcours',
+    chronologie: 'Chronologie',
+    cartographie: 'Cartographie',
+    lieux: (n: number) => `${n} lieu${n > 1 ? 'x' : ''}`,
+  },
+
+  // Frises : siècles étudiés et parcours
   frise: {
-    surtitre: 'Recherches et formation',
-    titre: 'Chronologie',
-    choisir: 'Choisir la frise',
-    siecles: 'Siècles étudiés',
-    parcours: 'Mon parcours',
+    surtitre: 'Recherches historiques',
+    titre: 'Siècles étudiés',
     periodeEtudiee: 'Période étudiée par chaque travail',
     memoireEnCours: 'Mémoire en cours',
     etudes: 'Études',
@@ -84,18 +92,18 @@ const fr = {
     siecle: (s: string[]) => `${s.join(' – ')}`,
   },
 
-  // Géographie
+  // Cartographie
   carte: {
-    surtitre: 'Lieux et terrains',
-    titre: 'Géographie',
     legende: 'Carte stylisée des lieux de mon parcours et de mes travaux',
-    invitation: 'Choisissez un lieu sur la carte',
+    invitation: 'Cliquez sur un lieu pour zoomer',
     parcours: 'Parcours',
     travaux: 'Travaux',
     echelle: '20 km',
     cartouche: ['Carte des lieux', 'Maine, Touraine', 'et Blésois'],
     note: 'Tracé des rivières simplifié',
     itineraire: 'Le fil de mon parcours',
+    ensemble: 'Vue d’ensemble',
+    ouest: 'O',
   },
 
   // Compétences et bibliothèque
@@ -161,6 +169,7 @@ const en: Textes = {
   ogLocale: 'en_GB',
   evitement: 'Skip to content',
   navPrincipale: 'Main navigation',
+  menu: 'Menu',
   nav: { parcours: 'Background', travaux: 'Work', competences: 'Skills', contact: 'Contact' },
   autreLangue: { court: 'FR', long: 'Version française' },
   bougie: { versClair: 'Blow out the candle: switch to light theme', versSombre: 'Light the candle: switch to dark theme' },
@@ -170,9 +179,9 @@ const en: Textes = {
   sections: 'Page sections',
   ecrans: {
     accueil: 'Introduction',
-    chronologie: 'Timeline',
+    parcours: 'Background',
+    siecles: 'Centuries studied',
     travaux: 'Work',
-    geographie: 'Places',
     competences: 'Skills',
     bibliotheque: 'Library',
     contact: 'Contact',
@@ -188,12 +197,18 @@ const en: Textes = {
   touchezMedaillon: 'Tap the medallion',
   defiler: 'Scroll',
 
+  parcours: {
+    surtitre: 'Education and experience',
+    titre: 'Background',
+    choisir: 'Choose a view of my background',
+    chronologie: 'Timeline',
+    cartographie: 'Map',
+    lieux: (n: number) => `${n} place${n > 1 ? 's' : ''}`,
+  },
+
   frise: {
-    surtitre: 'Research and education',
-    titre: 'Timeline',
-    choisir: 'Choose a timeline',
-    siecles: 'Centuries studied',
-    parcours: 'My background',
+    surtitre: 'Historical research',
+    titre: 'Centuries studied',
     periodeEtudiee: 'Period studied by each project',
     memoireEnCours: 'Thesis in progress',
     etudes: 'Studies',
@@ -221,16 +236,16 @@ const en: Textes = {
   },
 
   carte: {
-    surtitre: 'Places and fieldwork',
-    titre: 'Geography',
     legende: 'Stylised map of the places of my studies and projects',
-    invitation: 'Choose a place on the map',
+    invitation: 'Click a place to zoom in',
     parcours: 'Background',
     travaux: 'Projects',
     echelle: '20 km',
     cartouche: ['Map of places', 'Maine, Touraine', 'and Blésois'],
     note: 'Rivers simplified',
     itineraire: 'The thread of my journey',
+    ensemble: 'Whole map',
+    ouest: 'W',
   },
 
   competences: { surtitre: 'Know-how', titre: 'Skills' },

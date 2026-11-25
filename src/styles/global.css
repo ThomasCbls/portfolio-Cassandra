@@ -269,7 +269,8 @@ a:hover {
   justify-content: center;
   min-height: 100vh;
   min-height: 100svh;
-  padding: clamp(5.5rem, 12vh, 7.5rem) calc(var(--gouttiere) + var(--marge-cadre)) clamp(3rem, 8vh, 5rem);
+  /* En haut : la place de l'en-tête fixe */
+  padding: clamp(6.75rem, 13vh, 8rem) calc(var(--gouttiere) + var(--marge-cadre)) clamp(3rem, 8vh, 5rem);
   /* Fond opaque : les écrans s'empilent comme des pages (la poussière dorée passe au-dessus) */
   background: var(--ecran-fond);
   scroll-snap-align: start;
@@ -288,10 +289,32 @@ a:hover {
   }
 }
 
-/* Téléphones : l'en-tête passe sur deux lignes */
-@media (max-width: 40rem) {
+/* Écrans étroits : l'en-tête est compact (nom, langue, bougie, menu) */
+@media (max-width: 68rem) {
   .ecran {
-    padding-top: 8.5rem;
+    padding-top: clamp(5.75rem, 11vh, 7rem);
+  }
+}
+
+/* Téléphones : « Chapitre II » et son fleuron sur leur propre ligne, au-dessus du surtitre */
+@media (max-width: 40rem) {
+  .surtitre {
+    letter-spacing: 0.2em;
+    line-height: 1.7;
+  }
+
+  .surtitre .chapitre {
+    display: flex;
+    width: fit-content;
+    margin: 0 0 0.2rem;
+  }
+
+  :is(.competences-entete, .bibliotheque-entete, .contact) .surtitre .chapitre {
+    margin-inline: auto;
+  }
+
+  .ecran {
+    padding-bottom: clamp(2.5rem, 6vh, 4rem);
   }
 }
 
@@ -346,6 +369,22 @@ html.empilement {
   will-change: opacity;
 }
 
+/* Grand numéro du chapitre, en filigrane derrière le titre (créé et déplacé en JavaScript) */
+.numero-filigrane {
+  position: absolute;
+  top: clamp(3.5rem, 8vh, 5.5rem);
+  right: calc(var(--gouttiere) + 6rem);
+  z-index: 0;
+  font-family: var(--f-titre);
+  font-style: italic;
+  font-size: clamp(9rem, 24vw, 21rem);
+  line-height: 1;
+  color: color-mix(in srgb, var(--or) 7%, transparent);
+  pointer-events: none;
+  user-select: none;
+  will-change: transform;
+}
+
 .empilement main > .ecran + .ecran {
   box-shadow:
     0 -1px 0 rgba(201, 169, 110, 0.25),
@@ -396,6 +435,11 @@ html.empilement {
   width: fit-content;
   padding: 0.15em 0.4em 0.35em 0.25em;
   margin: -0.15em -0.4em -0.35em -0.25em;
+}
+
+/* Un peu d'air entre la ligne « Chapitre … » et le titre calligraphié */
+.surtitre + .titre-section {
+  margin-top: calc(0.7rem - 0.15em);
 }
 
 .ecrit {
@@ -782,13 +826,14 @@ html.empilement {
   .carrousel-pied,
   .compteur,
   .onglets,
-  .lieu-bouton,
+  .vue-ensemble,
   .invitation-lieu,
   .livre-ouvert,
   .livre-etiquette,
   .sceau-message,
   .date-republicaine,
   .voile,
+  .numero-filigrane,
   .retour,
   .filigrane,
   .diapo-fond,
@@ -835,7 +880,7 @@ html.empilement {
   .anime,
   .diapo-medaillon,
   .etiquette,
-  .lieu,
+  .lieu-pose,
   .fil,
   .sceau,
   .tampon,
@@ -870,8 +915,8 @@ html.empilement {
     grid-template-columns: 1fr !important;
   }
 
-  /* Frise : les deux vues ; carrousel : toutes les diapositives, à la suite */
-  .vue[hidden] {
+  /* Parcours : chronologie et carte ; carrousel : toutes les diapositives, à la suite */
+  .panneau[hidden] {
     display: block !important;
     margin-top: 0.8cm;
   }
