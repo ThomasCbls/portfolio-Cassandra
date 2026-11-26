@@ -30,7 +30,7 @@ Créer `src/content/travaux/mon-travail.md` : il devient la page `/travaux/mon-t
 titre: Titre court
 sousTitre: Sous-titre précis
 nature: Projet étudiant
-annee: 2025            # ou un texte : 2023–2026 (facultatif)
+annee: 2025 - 2026           # ou un texte : 2023–2026 (facultatif)
 ordre: 1               # position dans le carrousel (facultatif)
 debut: 1830            # période historique étudiée (facultatif) :
 fin: 1914              # place le travail sur la frise « Siècles étudiés »
